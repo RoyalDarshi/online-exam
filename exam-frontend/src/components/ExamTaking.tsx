@@ -20,9 +20,8 @@ type Props = {
 
 const MAX_WARNINGS = 3;
 const SNAPSHOT_INTERVAL = 30000;
-const FACE_CHECK_INTERVAL = 5000; // ms
+const FACE_CHECK_INTERVAL = 5000;
 
-// For TS: declare optional FaceDetector on window
 declare global {
   interface Window {
     FaceDetector?: any;
@@ -30,35 +29,35 @@ declare global {
 }
 
 export function ExamTaking({ exam, onComplete, onCancel }: Props) {
-  // --- STATE ---
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [attemptId, setAttemptId] = useState<string | null>(null);
 
-  const [timeLeft, setTimeLeft] = useState(exam.duration_minutes * 60);
-  const [status, setStatus] = useState<'loading' | 'idle' | 'active' | 'submitting'>('loading');
+  const [timeLeft, setTimeLeft] = useState<number>(0);
+  const [status, setStatus] =
+    useState<'loading' | 'idle' | 'active' | 'submitting'>('loading');
 
   const [isFullScreen, setIsFullScreen] = useState(true);
   const [faceDetected, setFaceDetected] = useState(true);
 
-  // Proctoring
   const [warnings, setWarnings] = useState(0);
   const [cameraAccess, setCameraAccess] = useState(false);
+  const [online, setOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
+
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // --- HOOKS ---
   useProctoring({
     isActive: status === 'active',
-    onViolation: (type) => handleViolation(type)
+    onViolation: (type) => handleViolation(type),
   });
 
-  // 1. Load Questions
+  // 1. Load questions
   useEffect(() => {
     const loadQuestions = async () => {
       try {
-        const response = await api.get(`/exams/${exam.id}`);
-        if (response.data.questions) {
-          setQuestions(response.data.questions);
+        const res = await api.get(`/exams/${exam.id}`);
+        if (res.data.questions) {
+          setQuestions(res.data.questions);
           setStatus('idle');
         }
       } catch (error) {
@@ -68,9 +67,10 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
     };
     loadQuestions();
     return () => stopCamera();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 2. Timer
+  // 2. Timer (client side, driven by server-provided timeLeft)
   useEffect(() => {
     if (status !== 'active') return;
     if (timeLeft <= 0) {
@@ -78,11 +78,14 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
       return;
     }
 
-    const timer = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
     return () => clearInterval(timer);
-  }, [timeLeft, status]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, timeLeft]);
 
-  // 3. Fullscreen Watcher
+  // 3. Fullscreen watcher
   useEffect(() => {
     if (status !== 'active') return;
 
@@ -94,9 +97,10 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
 
     document.addEventListener('fullscreenchange', handleScreenChange);
     return () => document.removeEventListener('fullscreenchange', handleScreenChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  // 4. Auto-Save Snapshot
+  // 4. Autosave (answers + occasional snapshot)
   useEffect(() => {
     if (status !== 'active' || !attemptId) return;
 
@@ -107,7 +111,7 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
           attempt_id: attemptId,
           answers,
           tab_switches: warnings,
-          snapshot
+          snapshot,
         });
       } catch {
         // ignore
@@ -117,7 +121,7 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
     return () => clearInterval(interval);
   }, [status, attemptId, answers, warnings]);
 
-  // 5. Tab Switch Monitoring (visibility + blur)
+  // 5. Tab / blur monitoring
   useEffect(() => {
     if (status !== 'active') return;
 
@@ -128,7 +132,6 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
     };
 
     const onBlur = () => {
-      // window lost focus (alt+tab, etc.)
       handleViolation('window_blur');
     };
 
@@ -139,16 +142,16 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('blur', onBlur);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  // 6. Keyboard Shortcut Restrictions (copy/print/devtools/etc.)
+  // 6. Keyboard restrictions
   useEffect(() => {
     if (status !== 'active') return;
 
     const onKeyDown = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
 
-      // Common shortcuts: refresh, print, save, view source, copy, paste, cut, select all
       if (
         (e.ctrlKey || e.metaKey) &&
         ['r', 'p', 's', 'u', 'c', 'v', 'x', 'a'].includes(key)
@@ -157,7 +160,6 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
         handleViolation('keyboard_shortcut');
       }
 
-      // DevTools: F12 or Ctrl+Shift+I
       if (key === 'f12' || (e.ctrlKey && e.shiftKey && key === 'i')) {
         e.preventDefault();
         handleViolation('devtools');
@@ -166,15 +168,13 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  // 7. Face Detection (if browser supports FaceDetector)
+  // 7. FaceDetector (if supported)
   useEffect(() => {
     if (status !== 'active') return;
-    if (!window.FaceDetector) {
-      console.warn('FaceDetector API not supported in this browser.');
-      return;
-    }
+    if (!window.FaceDetector) return;
 
     const detector = new window.FaceDetector({ fastMode: true });
 
@@ -183,15 +183,11 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
         if (!videoRef.current || videoRef.current.readyState < 2) return;
 
         const faces = await detector.detect(videoRef.current);
-
         setFaceDetected((prev) => {
           const hasFace = !!faces && faces.length > 0;
-
-          // Trigger violation only on transition from "had face" -> "no face"
           if (!hasFace && prev) {
             handleViolation('no_face_detected');
           }
-
           return hasFace;
         });
       } catch (err) {
@@ -200,9 +196,36 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
     }, FACE_CHECK_INTERVAL);
 
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  // --- ACTIONS ---
+  // 8. Online / offline handling
+  useEffect(() => {
+    const handleOnline = async () => {
+      setOnline(true);
+      if (attemptId) {
+        try {
+          const res = await api.get(`/attempts/${attemptId}`);
+          setAnswers(res.data.answers || {});
+          if (typeof res.data.time_left === 'number') {
+            setTimeLeft(res.data.time_left);
+          }
+        } catch {
+          // ignore
+        }
+      }
+    };
+    const handleOffline = () => setOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [attemptId]);
+
+  // ---- actions ----
 
   const handleAnswerSelect = (questionId: string, option: string) => {
     setAnswers((prev) => {
@@ -214,7 +237,7 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
             attempt_id: attemptId,
             answers: newAnswers,
             tab_switches: warnings,
-            snapshot: ''
+            snapshot: '',
           })
           .catch(() => { });
       }
@@ -222,44 +245,78 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
     });
   };
 
-  // System check now just starts exam (no ExamGuard)
   const performSystemCheck = async () => {
-    // Always "pass"
     startExamSequence();
   };
 
   const startExamSequence = async () => {
+    if (!online) {
+      alert('You are offline. Connect to the internet to start the exam.');
+      return;
+    }
+
     try {
       if (!cameraAccess) await startCamera();
+
+      const res = await api.post('/attempts/start', { exam_id: exam.id });
+
+      // backend returns full attempt with time_left
+      const attempt = res.data;
+      if (!attempt || !attempt.id) {
+        throw new Error('Invalid server response');
+      }
+
+      setAttemptId(attempt.id);
+      setAnswers(attempt.answers || {});
+      setTimeLeft(typeof attempt.time_left === 'number'
+        ? attempt.time_left
+        : exam.duration_minutes * 60
+      );
+
       await requestFullScreen();
       setIsFullScreen(true);
-
-      const response = await api.post('/attempts/start', { exam_id: exam.id });
-      setAttemptId(response.data.id);
       setStatus('active');
-    } catch (error) {
-      alert('Could not start exam. Ensure camera is allowed.');
+    } catch (err: any) {
+      const code = err?.response?.data?.error;
+      if (code === 'exam_not_started') {
+        const startTime = err.response.data.start_time;
+        alert(
+          'Exam has not started yet.\nStart time: ' +
+          new Date(startTime).toLocaleString()
+        );
+      } else if (code === 'exam_closed') {
+        alert('This exam is already closed.');
+        onCancel();
+      } else if (code === 'attempt_already_submitted') {
+        alert('You have already submitted this exam.');
+        onCancel();
+      } else {
+        alert('Could not start exam. Ensure camera & internet are allowed.');
+      }
     }
   };
 
   const finishExam = async () => {
     if (status === 'submitting') return;
-
     setStatus('submitting');
     stopCamera();
 
     try {
-      if (document.fullscreenElement) await document.exitFullscreen();
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      }
     } catch {
       // ignore
     }
 
     try {
-      await api.post('/attempts/submit', { attempt_id: attemptId });
-      alert('Exam Submitted Successfully!');
+      if (attemptId) {
+        await api.post('/attempts/submit', { attempt_id: attemptId });
+      }
+      alert('Exam submitted.');
       onComplete();
     } catch {
-      alert('Error submitting exam. Progress saved.');
+      alert('Error submitting exam. Some progress may still be saved.');
       onComplete();
     }
   };
@@ -273,7 +330,7 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
         .post('/progress', {
           attempt_id: attemptId,
           tab_switches: newWarnings,
-          answers
+          answers,
         })
         .catch(console.error);
     }
@@ -286,13 +343,15 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
     }
   };
 
-  // CAMERA HELPERS
+  // camera helpers
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 320, height: 240 }
+        video: { width: 320, height: 240 },
       });
-      if (videoRef.current) videoRef.current.srcObject = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
       setCameraAccess(true);
     } catch {
       throw new Error('Camera denied');
@@ -301,7 +360,9 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
 
   const stopCamera = () => {
     if (videoRef.current?.srcObject) {
-      (videoRef.current.srcObject as MediaStream).getTracks().forEach((t) => t.stop());
+      (videoRef.current.srcObject as MediaStream)
+        .getTracks()
+        .forEach((t) => t.stop());
     }
   };
 
@@ -314,7 +375,7 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
     return canvas.toDataURL('image/jpeg', 0.5);
   };
 
-  // --- RENDER ---
+  // --- render ---
 
   if (status === 'loading') {
     return (
@@ -324,14 +385,11 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
     );
   }
 
-  // ----------------------------------
-  // IDLE SCREEN (BEFORE START)
-  // ----------------------------------
+  // idle screen before start
   if (status === 'idle') {
     return (
       <div
         className="min-h-screen bg-gray-900 flex items-center justify-center p-4"
-        // Anti-copy / anti-context menu
         onContextMenu={(e) => e.preventDefault()}
         onCopy={(e) => e.preventDefault()}
         onCut={(e) => e.preventDefault()}
@@ -339,6 +397,13 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
       >
         <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-8 text-center">
           <h1 className="text-2xl font-bold mb-2">{exam.title}</h1>
+
+          <p className="text-sm text-gray-600 mb-2">
+            Scheduled start:{' '}
+            {exam.start_time
+              ? new Date(exam.start_time as any).toLocaleString()
+              : 'Not set'}
+          </p>
 
           <div className="relative bg-black rounded-lg overflow-hidden aspect-video mb-6">
             <video
@@ -365,16 +430,17 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
               <div>
                 <p className="font-bold text-green-700 text-sm">System Secure</p>
                 <p className="text-xs text-green-700 mt-1">
-                  Copy, print, shortcuts & tab switch will be monitored during the exam.
+                  Copy, print, shortcuts & tab switch will be monitored during the
+                  exam.
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="space-y-3">
-            {!cameraAccess ? (
+          {online ? (
+            !cameraAccess ? (
               <button
-                onClick={() => startCamera().catch(() => alert('Camera Required'))}
+                onClick={() => startCamera().catch(() => alert('Camera required'))}
                 className="w-full bg-gray-800 text-white py-3 rounded-lg font-bold"
               >
                 Enable Camera
@@ -386,28 +452,28 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
               >
                 START EXAM
               </button>
-            )}
+            )
+          ) : (
+            <div className="bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm">
+              You are offline. Connect to the internet to start.
+            </div>
+          )}
 
-            <button
-              onClick={onCancel}
-              className="text-sm text-gray-500 hover:text-gray-700"
-            >
-              Cancel
-            </button>
-          </div>
+          <button
+            onClick={onCancel}
+            className="mt-4 text-sm text-gray-500 hover:text-gray-700"
+          >
+            Cancel
+          </button>
         </div>
       </div>
     );
   }
 
-  // ----------------------------------
-  // ACTIVE EXAM SCREEN
-  // ----------------------------------
-
+  // active exam screen
   return (
     <div
       className="min-h-screen bg-gray-50 select-none relative"
-      // Anti-copy / anti-context menu
       onContextMenu={(e) => e.preventDefault()}
       onCopy={(e) => {
         e.preventDefault();
@@ -422,9 +488,13 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
         handleViolation('paste');
       }}
     >
-      <video ref={videoRef} autoPlay muted className="fixed opacity-0 pointer-events-none" />
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        className="fixed opacity-0 pointer-events-none"
+      />
 
-      {/* Fullscreen Curtain */}
       {!isFullScreen && (
         <div className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center p-8 text-center">
           <div className="bg-red-50 p-10 rounded-2xl border-4 border-red-500 shadow-2xl max-w-lg animate-pulse">
@@ -448,7 +518,6 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
       )}
 
       <div className={!isFullScreen ? 'opacity-0 pointer-events-none' : ''}>
-        {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 shadow-sm z-50">
           <div className="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
             <div>
@@ -459,13 +528,21 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
                   }`}
               >
                 {warnings > 0 && <AlertTriangle className="w-3 h-3" />}
-                <span>Violations: {warnings}/{MAX_WARNINGS}</span>
+                <span>
+                  Violations: {warnings}/{MAX_WARNINGS}
+                </span>
                 {!faceDetected && (
                   <span className="ml-3 text-red-600">
                     (No face detected – stay in camera view)
                   </span>
                 )}
               </div>
+
+              {!online && (
+                <div className="text-xs text-orange-600 mt-1">
+                  Offline – changes will sync when connection returns.
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-4">
@@ -478,7 +555,7 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
               <button
                 onClick={finishExam}
                 disabled={status === 'submitting'}
-                className="bg-blue-600 text-white px-5 py-2 rounded-lg font-semibold"
+                className="bg-blue-600 text-white px-5 py-2 rounded-lg font-semibold disabled:opacity-50"
               >
                 Submit
               </button>
@@ -486,7 +563,6 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
           </div>
         </div>
 
-        {/* Questions */}
         <div className="max-w-4xl mx-auto px-4 py-8 pb-32 space-y-6">
           {questions.map((q, index) => (
             <div
@@ -507,13 +583,10 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
                     {['A', 'B', 'C', 'D'].map((option) => (
                       <label
                         key={option}
-                        className={`
-                          flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all
-                          ${answers[q.id] === option
-                            ? 'border-blue-600 bg-blue-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                          }
-                        `}
+                        className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${answers[q.id] === option
+                          ? 'border-blue-600 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                          }`}
                       >
                         <input
                           type="radio"

@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import api from '../lib/api'; // Use your new Axios client
-import { Plus, Trash2, ArrowLeft } from 'lucide-react';
+import { useState } from "react";
+import api from "../lib/api";
+import { Plus, Trash2, ArrowLeft } from "lucide-react";
 
 type Props = {
   onComplete: () => void;
@@ -13,259 +13,326 @@ type QuestionInput = {
   option_b: string;
   option_c: string;
   option_d: string;
-  correct_answer: 'A' | 'B' | 'C' | 'D';
+  correct_answer: "A" | "B" | "C" | "D";
   points: number;
 };
 
 export function CreateExam({ onComplete, onCancel }: Props) {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [passingScore, setPassingScore] = useState(60);
+
+  // NEW FIELDS
+  const [examDate, setExamDate] = useState("");
+  const [examStartTime, setExamStartTime] = useState("");
+
   const [questions, setQuestions] = useState<QuestionInput[]>([
     {
-      question_text: '',
-      option_a: '',
-      option_b: '',
-      option_c: '',
-      option_d: '',
-      correct_answer: 'A',
+      question_text: "",
+      option_a: "",
+      option_b: "",
+      option_c: "",
+      option_d: "",
+      correct_answer: "A",
       points: 1,
     },
   ]);
+
   const [saving, setSaving] = useState(false);
 
-  function addQuestion() {
+  // Add Question
+  const addQuestion = () => {
     setQuestions([
       ...questions,
       {
-        question_text: '',
-        option_a: '',
-        option_b: '',
-        option_c: '',
-        option_d: '',
-        correct_answer: 'A',
+        question_text: "",
+        option_a: "",
+        option_b: "",
+        option_c: "",
+        option_d: "",
+        correct_answer: "A",
         points: 1,
       },
     ]);
-  }
+  };
 
-  function removeQuestion(index: number) {
+  // Remove Question
+  const removeQuestion = (index: number) => {
     setQuestions(questions.filter((_, i) => i !== index));
-  }
+  };
 
-  function updateQuestion(index: number, field: keyof QuestionInput, value: string | number) {
+  // Update Question Value
+  const updateQuestion = (
+    index: number,
+    field: keyof QuestionInput,
+    value: string | number
+  ) => {
     const updated = [...questions];
-    // @ts-ignore - Dynamic assignment
-    updated[index] = { ...updated[index], [field]: value };
+    // @ts-ignore
+    updated[index][field] = value;
     setQuestions(updated);
-  }
+  };
 
-  async function handleSubmit(e: React.FormEvent) {
+  // Submit Exam
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
 
-    if (questions.length === 0) {
-      alert('Please add at least one question');
+    if (!examDate || !examStartTime) {
+      alert("Please select exam date & start time.");
       return;
     }
 
-    // Basic Validation
-    const invalidQuestions = questions.filter(
-      q => !q.question_text || !q.option_a || !q.option_b || !q.option_c || !q.option_d
-    );
-
-    if (invalidQuestions.length > 0) {
-      alert('Please fill in all question fields');
+    if (questions.length === 0) {
+      alert("Please add at least one question.");
       return;
+    }
+
+    for (const q of questions) {
+      if (
+        !q.question_text ||
+        !q.option_a ||
+        !q.option_b ||
+        !q.option_c ||
+        !q.option_d
+      ) {
+        alert("All question fields must be filled.");
+        return;
+      }
     }
 
     setSaving(true);
-
     try {
-      // 1. Construct the payload
-      // Go backend expects { title: "...", questions: [...] }
+      const isoStart = new Date(`${examDate}T${examStartTime}:00`).toISOString();
+
       const payload = {
         title,
         description,
         duration_minutes: durationMinutes,
         passing_score: passingScore,
-        // We map questions to add the 'order_number' required by backend
+        start_time: isoStart,
         questions: questions.map((q, index) => ({
           ...q,
-          order_number: index
-        }))
+          order_number: index,
+        })),
       };
 
-      // 2. Send single POST request
-      // The Go/GORM backend handles inserting Exam AND Questions together
-      await api.post('/admin/exams', payload);
-
+      await api.post("/admin/exams", payload);
+      alert("Exam Created Successfully!");
       onComplete();
-    } catch (error: any) {
-      console.error('Error creating exam:', error);
-      const msg = error.response?.data?.error || 'Failed to create exam';
-      alert(msg);
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Failed to create exam");
     } finally {
       setSaving(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-5xl mx-auto px-4 py-4">
+      {/* HEADER */}
+      <header className="bg-white border-b shadow-sm">
+        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-3">
           <button
             onClick={onCancel}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-2"
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
           >
             <ArrowLeft className="w-5 h-5" />
             Back
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">Create New Exam</h1>
+          <h1 className="text-2xl font-bold">Create Exam</h1>
         </div>
       </header>
 
+      {/* BODY */}
       <main className="max-w-5xl mx-auto px-4 py-8">
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* EXAM DETAILS CARD */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Exam Details</h2>
+          {/* EXAM DETAILS */}
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Exam Details
+            </h2>
+
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Exam Title
-                </label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  required
-                />
-              </div>
+              <input
+                type="text"
+                className="w-full px-4 py-2 border rounded-lg"
+                placeholder="Exam Title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                required
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Description
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  required
-                />
-              </div>
+              <textarea
+                className="w-full px-4 py-2 border rounded-lg"
+                rows={3}
+                placeholder="Description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                required
+              />
 
+              {/* SCHEDULED DATE & TIME */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Duration (minutes)
-                  </label>
+                  <label className="text-sm font-medium">Exam Date</label>
                   <input
-                    type="number"
-                    value={durationMinutes}
-                    onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                    min={1}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    type="date"
+                    className="w-full px-4 py-2 border rounded-lg"
+                    value={examDate}
+                    onChange={(e) => setExamDate(e.target.value)}
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="text-sm font-medium">Start Time</label>
+                  <input
+                    type="time"
+                    className="w-full px-4 py-2 border rounded-lg"
+                    value={examStartTime}
+                    onChange={(e) => setExamStartTime(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* DURATION / PASSING SCORE */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Duration (mins)</label>
+                  <input
+                    type="number"
+                    className="w-full px-4 py-2 border rounded-lg"
+                    value={durationMinutes}
+                    min={1}
+                    onChange={(e) => setDurationMinutes(Number(e.target.value))}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">
                     Passing Score (%)
                   </label>
                   <input
                     type="number"
+                    className="w-full px-4 py-2 border rounded-lg"
                     value={passingScore}
-                    onChange={(e) => setPassingScore(Number(e.target.value))}
                     min={0}
                     max={100}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                    required
+                    onChange={(e) => setPassingScore(Number(e.target.value))}
                   />
                 </div>
               </div>
             </div>
           </div>
 
-          {/* QUESTIONS LIST */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Questions</h2>
+          {/* QUESTIONS SECTION */}
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Questions
+              </h2>
+
               <button
                 type="button"
                 onClick={addQuestion}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium"
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg"
               >
-                <Plus className="w-5 h-5" />
-                Add Question
+                <Plus className="w-4 h-4" /> Add Question
               </button>
             </div>
 
-            {questions.map((question, index) => (
-              <div key={index} className="bg-white rounded-lg shadow-md p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-md font-semibold text-gray-900">
-                    Question {index + 1}
-                  </h3>
-                  {questions.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeQuestion(index)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  )}
-                </div>
+            {/* RENDER QUESTIONS */}
+            <div className="space-y-6">
+              {questions.map((q, index) => (
+                <div
+                  key={index}
+                  className="border border-gray-200 rounded-lg p-5 bg-gray-50"
+                >
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="font-semibold text-gray-800">
+                      Question #{index + 1}
+                    </h3>
+                    {questions.length > 1 && (
+                      <button
+                        type="button"
+                        className="text-red-600 hover:text-red-800"
+                        onClick={() => removeQuestion(index)}
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    )}
+                  </div>
 
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Question Text
-                    </label>
-                    <textarea
-                      value={question.question_text}
-                      onChange={(e) => updateQuestion(index, 'question_text', e.target.value)}
-                      rows={2}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  <textarea
+                    className="w-full px-4 py-2 border rounded-lg mb-4"
+                    placeholder="Question text"
+                    value={q.question_text}
+                    onChange={(e) =>
+                      updateQuestion(index, "question_text", e.target.value)
+                    }
+                    required
+                  />
+
+                  {/* OPTIONS */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      className="px-3 py-2 border rounded-lg"
+                      placeholder="Option A"
+                      value={q.option_a}
+                      onChange={(e) =>
+                        updateQuestion(index, "option_a", e.target.value)
+                      }
+                      required
+                    />
+
+                    <input
+                      className="px-3 py-2 border rounded-lg"
+                      placeholder="Option B"
+                      value={q.option_b}
+                      onChange={(e) =>
+                        updateQuestion(index, "option_b", e.target.value)
+                      }
+                      required
+                    />
+
+                    <input
+                      className="px-3 py-2 border rounded-lg"
+                      placeholder="Option C"
+                      value={q.option_c}
+                      onChange={(e) =>
+                        updateQuestion(index, "option_c", e.target.value)
+                      }
+                      required
+                    />
+
+                    <input
+                      className="px-3 py-2 border rounded-lg"
+                      placeholder="Option D"
+                      value={q.option_d}
+                      onChange={(e) =>
+                        updateQuestion(index, "option_d", e.target.value)
+                      }
                       required
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    {['A', 'B', 'C', 'D'].map(option => (
-                      <div key={option}>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Option {option}
-                        </label>
-                        <input
-                          type="text"
-                          value={question[`option_${option.toLowerCase()}` as keyof QuestionInput] as string}
-                          onChange={(e) =>
-                            updateQuestion(index, `option_${option.toLowerCase()}` as keyof QuestionInput, e.target.value)
-                          }
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                          required
-                        />
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
+                  {/* CORRECT ANSWER & POINTS */}
+                  <div className="grid grid-cols-2 gap-4 mt-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="text-sm font-medium">
                         Correct Answer
                       </label>
                       <select
-                        value={question.correct_answer}
+                        className="w-full px-3 py-2 border rounded-lg"
+                        value={q.correct_answer}
                         onChange={(e) =>
-                          updateQuestion(index, 'correct_answer', e.target.value)
+                          updateQuestion(
+                            index,
+                            "correct_answer",
+                            e.target.value as "A" | "B" | "C" | "D"
+                          )
                         }
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                        required
                       >
                         <option value="A">A</option>
                         <option value="B">B</option>
@@ -275,42 +342,31 @@ export function CreateExam({ onComplete, onCancel }: Props) {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Points
-                      </label>
+                      <label className="text-sm font-medium">Points</label>
                       <input
                         type="number"
-                        value={question.points}
+                        className="w-full px-3 py-2 border rounded-lg"
+                        value={q.points}
                         onChange={(e) =>
-                          updateQuestion(index, 'points', Number(e.target.value))
+                          updateQuestion(index, "points", Number(e.target.value))
                         }
                         min={1}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                        required
                       />
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
 
-          <div className="flex items-center justify-end gap-4">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-6 py-2 text-gray-700 hover:text-gray-900 font-medium"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50"
-            >
-              {saving ? 'Creating...' : 'Create Exam'}
-            </button>
-          </div>
+          {/* SUBMIT BUTTON */}
+          <button
+            type="submit"
+            disabled={saving}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold"
+          >
+            {saving ? "Saving..." : "Create Exam"}
+          </button>
         </form>
       </main>
     </div>
