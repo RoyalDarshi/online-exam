@@ -93,6 +93,37 @@ type ExamAttempt struct {
 	TimeLeftSeconds int `gorm:"-" json:"time_left"`
 }
 
+// Used for updating questions during Edit Exam
+type QuestionInput struct {
+	QuestionText  string `json:"question_text"`
+	OptionA       string `json:"option_a"`
+	OptionB       string `json:"option_b"`
+	OptionC       string `json:"option_c"`
+	OptionD       string `json:"option_d"`
+	CorrectAnswer string `json:"correct_answer"`
+	Points        int    `json:"points"`
+	OrderNumber   int    `json:"order_number"`
+}
+
+type QuestionBank struct {
+	ID uint `gorm:"primaryKey" json:"id"`
+
+	Subject    string `json:"subject"`
+	Topic      string `json:"topic"`
+	Complexity string `json:"complexity"` // easy, medium, hard
+	Type       string `json:"type"`       // single-choice, multi-select, true-false, descriptive, fill-blanks
+
+	QuestionText string `json:"question_text"`
+
+	Option1 string `json:"option1"`
+	Option2 string `json:"option2"`
+	Option3 string `json:"option3"`
+	Option4 string `json:"option4"`
+
+	// For multi-select, store as comma-separated: "A,B,D"
+	Correct string `json:"correct"`
+}
+
 func (ea *ExamAttempt) BeforeCreate(tx *gorm.DB) (err error) {
 	if ea.ID == uuid.Nil {
 		ea.ID = uuid.New()

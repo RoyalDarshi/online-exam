@@ -12,26 +12,37 @@ import (
 	"gorm.io/gorm"
 )
 
-// ----------------- helpers -----------------
+// Global IST location
+var istLocation, _ = time.LoadLocation("Asia/Kolkata")
 
+func nowIST() time.Time {
+	return time.Now().In(istLocation)
+}
+
+// Compute remaining time in seconds based on exam.EndTime (IST)
 func computeTimeLeft(exam models.Exam) int {
-	now := time.Now()
+	now := nowIST()
+
 	if !exam.EndTime.IsZero() {
-		secs := int(exam.EndTime.Sub(now).Seconds())
+		// ensure EndTime is also interpreted in IST
+		end := exam.EndTime.In(istLocation)
+		secs := int(end.Sub(now).Seconds())
 		if secs < 0 {
 			return 0
 		}
 		return secs
 	}
-	// fallback (no scheduled end set)
+
+	// Fallback if EndTime not set
 	if exam.DurationMinutes <= 0 {
 		return 0
 	}
 	return exam.DurationMinutes * 60
 }
 
-// ----------------- exams -----------------
+// ----------------- EXAMS -----------------
 
+// Admin: create exam + questions
 func CreateExam(c *gin.Context) {
 	var exam models.Exam
 	if err := c.ShouldBindJSON(&exam); err != nil {
@@ -44,7 +55,11 @@ func CreateExam(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found in context"})
 		return
 	}
-	userIDStr := uidVal.(string)
+	userIDStr, ok := uidVal.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user_id type"})
+		return
+	}
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user_id"})
@@ -52,8 +67,9 @@ func CreateExam(c *gin.Context) {
 	}
 	exam.CreatedByID = userID
 
-	// If StartTime is provided, compute EndTime = StartTime + duration
+	// IMPORTANT: normalize StartTime to IST and compute EndTime
 	if !exam.StartTime.IsZero() && exam.DurationMinutes > 0 {
+		exam.StartTime = exam.StartTime.In(istLocation)
 		exam.EndTime = exam.StartTime.Add(time.Duration(exam.DurationMinutes) * time.Minute)
 	}
 
@@ -64,6 +80,7 @@ func CreateExam(c *gin.Context) {
 	c.JSON(http.StatusOK, exam)
 }
 
+// List exams (students only see active ones)
 func GetExams(c *gin.Context) {
 	var exams []models.Exam
 
@@ -83,6 +100,7 @@ func GetExams(c *gin.Context) {
 	c.JSON(http.StatusOK, exams)
 }
 
+// Get exam details (with questions)
 func GetExamDetails(c *gin.Context) {
 	id := c.Param("id")
 	var exam models.Exam
@@ -95,7 +113,7 @@ func GetExamDetails(c *gin.Context) {
 	c.JSON(http.StatusOK, exam)
 }
 
-// update exam (used mainly for is_active toggle)
+// Admin: update exam (used for is_active, schedule changes, etc.)
 func UpdateExam(c *gin.Context) {
 	id := c.Param("id")
 
@@ -136,13 +154,13 @@ func UpdateExam(c *gin.Context) {
 		exam.IsActive = *input.IsActive
 	}
 	if input.StartTime != nil {
-		exam.StartTime = *input.StartTime
+		exam.StartTime = input.StartTime.In(istLocation)
 	}
 	if input.EndTime != nil {
-		exam.EndTime = *input.EndTime
+		exam.EndTime = input.EndTime.In(istLocation)
 	}
 
-	// keep EndTime consistent if StartTime & Duration are set
+	// If we have StartTime + Duration but no EndTime, recompute
 	if !exam.StartTime.IsZero() && exam.DurationMinutes > 0 && exam.EndTime.IsZero() {
 		exam.EndTime = exam.StartTime.Add(time.Duration(exam.DurationMinutes) * time.Minute)
 	}
@@ -155,6 +173,7 @@ func UpdateExam(c *gin.Context) {
 	c.JSON(http.StatusOK, exam)
 }
 
+// Admin: delete exam (questions & attempts cascade if FK set)
 func DeleteExam(c *gin.Context) {
 	id := c.Param("id")
 
@@ -165,9 +184,9 @@ func DeleteExam(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Exam deleted"})
 }
 
-// ----------------- attempts & progress -----------------
+// ----------------- ATTEMPTS & PROGRESS -----------------
 
-// strict scheduled exam start
+// Student: start/resume attempt with strict scheduled window
 func StartAttempt(c *gin.Context) {
 	var input struct {
 		ExamID string `json:"exam_id"`
@@ -189,19 +208,23 @@ func StartAttempt(c *gin.Context) {
 		return
 	}
 
-	now := time.Now()
-	if !exam.StartTime.IsZero() {
-		if now.Before(exam.StartTime) {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":      "exam_not_started",
-				"start_time": exam.StartTime,
-			})
-			return
-		}
-		if !exam.EndTime.IsZero() && now.After(exam.EndTime) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "exam_closed"})
-			return
-		}
+	now := nowIST()
+	start := exam.StartTime.In(istLocation)
+	end := exam.EndTime.In(istLocation)
+
+	// Not started yet
+	if !start.IsZero() && now.Before(start) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":      "exam_not_started",
+			"start_time": start,
+		})
+		return
+	}
+
+	// Already closed
+	if !end.IsZero() && now.After(end) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "exam_closed"})
+		return
 	}
 
 	uidVal, exists := c.Get("user_id")
@@ -209,14 +232,18 @@ func StartAttempt(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found in context"})
 		return
 	}
-	userIDStr := uidVal.(string)
+	userIDStr, ok := uidVal.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user_id type"})
+		return
+	}
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user_id"})
 		return
 	}
 
-	// resume if an open attempt exists
+	// Resume existing attempt if any
 	var existingAttempt models.ExamAttempt
 	if err := database.DB.
 		Where("student_id = ? AND exam_id = ?", userID, examUUID).
@@ -239,7 +266,7 @@ func StartAttempt(c *gin.Context) {
 		return
 	}
 
-	// new attempt
+	// Create new attempt
 	attempt := models.ExamAttempt{
 		ExamID:      examUUID,
 		StudentID:   userID,
@@ -258,6 +285,7 @@ func StartAttempt(c *gin.Context) {
 	c.JSON(http.StatusOK, attempt)
 }
 
+// Autosave progress + snapshots
 func UpdateProgress(c *gin.Context) {
 	var input struct {
 		AttemptID   string            `json:"attempt_id"`
@@ -302,6 +330,7 @@ func UpdateProgress(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
 
+// Submit attempt – server-side final time validation & scoring
 func SubmitAttempt(c *gin.Context) {
 	var input struct {
 		AttemptID string `json:"attempt_id"`
@@ -328,13 +357,16 @@ func SubmitAttempt(c *gin.Context) {
 		return
 	}
 
-	// time enforcement based on scheduled EndTime
-	if !exam.EndTime.IsZero() && time.Now().After(exam.EndTime) {
+	now := nowIST()
+	end := exam.EndTime.In(istLocation)
+
+	// If time is over according to server, terminate
+	if !end.IsZero() && now.After(end) {
 		attempt.IsTerminated = true
 		attempt.TerminationReason = "Time limit exceeded (Server validation)"
 	}
 
-	// score
+	// Score calculation
 	var questions []models.Question
 	if err := database.DB.Where("exam_id = ?", attempt.ExamID).
 		Order("order_number asc").
@@ -361,6 +393,7 @@ func SubmitAttempt(c *gin.Context) {
 		attempt.Passed = false
 	}
 
+	// Proctoring rule
 	if attempt.TabSwitches >= 3 {
 		attempt.Passed = false
 		attempt.Score = 0
@@ -368,8 +401,8 @@ func SubmitAttempt(c *gin.Context) {
 		attempt.TerminationReason = "Proctoring Violations"
 	}
 
-	now := time.Now()
-	attempt.SubmittedAt = &now
+	nowPtr := now
+	attempt.SubmittedAt = &nowPtr
 
 	if err := database.DB.Save(&attempt).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save attempt"})
@@ -380,7 +413,7 @@ func SubmitAttempt(c *gin.Context) {
 	c.JSON(http.StatusOK, attempt)
 }
 
-// also used by admin + student (for reconnect)
+// For reconnect & admin review
 func GetAttemptDetails(c *gin.Context) {
 	id := c.Param("id")
 
@@ -393,18 +426,17 @@ func GetAttemptDetails(c *gin.Context) {
 		return
 	}
 
-	// compute time_left for reconnect scenarios
 	attempt.TimeLeftSeconds = computeTimeLeft(attempt.Exam)
 	c.JSON(http.StatusOK, attempt)
 }
 
-// admin: get attempts for an exam (with student info)
+// Admin: all attempts for an exam (with pagination)
 func GetExamAttempts(c *gin.Context) {
 	examID := c.Param("id")
 
-	// basic pagination (optional)
 	pageStr := c.DefaultQuery("page", "1")
 	limitStr := c.DefaultQuery("limit", "50")
+
 	page, _ := strconv.Atoi(pageStr)
 	limit, _ := strconv.Atoi(limitStr)
 	if page < 1 {
@@ -436,5 +468,78 @@ func GetExamAttempts(c *gin.Context) {
 		"limit":      limit,
 		"total":      total,
 		"totalPages": (total + int64(limit) - 1) / int64(limit),
+	})
+}
+
+// Admin: Update exam + overwrite questions
+func UpdateExamWithQuestions(c *gin.Context) {
+	examID := c.Param("id")
+
+	var input struct {
+		Title           *string                `json:"title"`
+		Description     *string                `json:"description"`
+		DurationMinutes *int                   `json:"duration_minutes"`
+		PassingScore    *int                   `json:"passing_score"`
+		IsActive        *bool                  `json:"is_active"`
+		StartTime       *time.Time             `json:"start_time"`
+		Questions       []models.QuestionInput `json:"questions"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var exam models.Exam
+	if err := database.DB.First(&exam, "id = ?", examID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Exam not found"})
+		return
+	}
+
+	// Update exam fields
+	if input.Title != nil {
+		exam.Title = *input.Title
+	}
+	if input.Description != nil {
+		exam.Description = *input.Description
+	}
+	if input.DurationMinutes != nil {
+		exam.DurationMinutes = *input.DurationMinutes
+	}
+	if input.PassingScore != nil {
+		exam.PassingScore = *input.PassingScore
+	}
+	if input.IsActive != nil {
+		exam.IsActive = *input.IsActive
+	}
+	if input.StartTime != nil {
+		exam.StartTime = input.StartTime.In(istLocation)
+		exam.EndTime = exam.StartTime.Add(time.Duration(exam.DurationMinutes) * time.Minute)
+	}
+
+	// Update questions: remove old, add new
+	database.DB.Where("exam_id = ?", exam.ID).Delete(&models.Question{})
+
+	for _, q := range input.Questions {
+		newQ := models.Question{
+			ExamID:        exam.ID,
+			QuestionText:  q.QuestionText,
+			OptionA:       q.OptionA,
+			OptionB:       q.OptionB,
+			OptionC:       q.OptionC,
+			OptionD:       q.OptionD,
+			CorrectAnswer: q.CorrectAnswer,
+			Points:        q.Points,
+			OrderNumber:   q.OrderNumber,
+		}
+		database.DB.Create(&newQ)
+	}
+
+	// Save final exam
+	database.DB.Save(&exam)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Exam updated successfully",
+		"exam":    exam,
 	})
 }

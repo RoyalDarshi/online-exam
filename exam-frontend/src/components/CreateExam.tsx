@@ -1,373 +1,418 @@
-import { useState } from "react";
-import api from "../lib/api";
-import { Plus, Trash2, ArrowLeft } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  Upload,
+  FileSpreadsheet,
+  ListChecks,
+  LayoutList,
+  ChevronDown,
+  ChevronUp,
+  Filter,
+  Wand2,
+  RefreshCw,
+  CheckCircle2,
+  XCircle,
+  Loader2
+} from "lucide-react";
+import Papa from "papaparse";
 
-type Props = {
-  onComplete: () => void;
-  onCancel: () => void;
+type QuestionBankItem = {
+  subject: string;
+  complexity: string;
+  topic: string;
+  type: string;
+  question: string;
+  option1?: string;
+  option2?: string;
+  option3?: string;
+  option4?: string;
+  correct?: string;
 };
 
-type QuestionInput = {
-  question_text: string;
-  option_a: string;
-  option_b: string;
-  option_c: string;
-  option_d: string;
-  correct_answer: "A" | "B" | "C" | "D";
-  points: number;
-};
+export function CreateExam({ onComplete, onCancel }) {
+  const [step, setStep] = useState(1);
 
-export function CreateExam({ onComplete, onCancel }: Props) {
+  // BASIC EXAM META
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [durationMinutes, setDurationMinutes] = useState(60);
-  const [passingScore, setPassingScore] = useState(60);
 
-  // NEW FIELDS
-  const [examDate, setExamDate] = useState("");
-  const [examStartTime, setExamStartTime] = useState("");
+  // BANK DATA
+  const [questionBank, setQuestionBank] = useState<QuestionBankItem[]>([]);
+  const [uniqueSubjects, setUniqueSubjects] = useState<string[]>([]);
+  const [uniqueTopics, setUniqueTopics] = useState<string[]>([]);
 
-  const [questions, setQuestions] = useState<QuestionInput[]>([
-    {
-      question_text: "",
-      option_a: "",
-      option_b: "",
-      option_c: "",
-      option_d: "",
-      correct_answer: "A",
-      points: 1,
-    },
-  ]);
+  // FILTERS
+  const [selectedSubject, setSelectedSubject] = useState("");
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
 
-  const [saving, setSaving] = useState(false);
+  // EXAM GENERATION SETTINGS
+  const [totalQuestions, setTotalQuestions] = useState(40);
 
-  // Add Question
-  const addQuestion = () => {
-    setQuestions([
-      ...questions,
-      {
-        question_text: "",
-        option_a: "",
-        option_b: "",
-        option_c: "",
-        option_d: "",
-        correct_answer: "A",
-        points: 1,
-      },
-    ]);
-  };
+  const [complexity, setComplexity] = useState({
+    easy: 40,
+    medium: 40,
+    hard: 20
+  });
 
-  // Remove Question
-  const removeQuestion = (index: number) => {
-    setQuestions(questions.filter((_, i) => i !== index));
-  };
+  const [quickStart, setQuickStart] = useState(true);
 
-  // Update Question Value
-  const updateQuestion = (
-    index: number,
-    field: keyof QuestionInput,
-    value: string | number
-  ) => {
-    const updated = [...questions];
-    // @ts-ignore
-    updated[index][field] = value;
-    setQuestions(updated);
-  };
+  // GENERATED QUESTIONS
+  const [generatedQuestions, setGeneratedQuestions] = useState<QuestionBankItem[]>([]);
+  const [generating, setGenerating] = useState(false);
 
-  // Submit Exam
-  const handleSubmit = async (e: any) => {
-    e.preventDefault();
+  // ========================================================
+  // STEP 1: Upload Excel (CSV-compatible for now)
+  // ========================================================
 
-    if (!examDate || !examStartTime) {
-      alert("Please select exam date & start time.");
-      return;
-    }
+  const handleExcelUpload = (e: any) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
-    if (questions.length === 0) {
-      alert("Please add at least one question.");
-      return;
-    }
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (res: any) => {
+        const rows = res.data as QuestionBankItem[];
+        setQuestionBank(rows);
 
-    for (const q of questions) {
-      if (
-        !q.question_text ||
-        !q.option_a ||
-        !q.option_b ||
-        !q.option_c ||
-        !q.option_d
-      ) {
-        alert("All question fields must be filled.");
-        return;
+        const subjects = [...new Set(rows.map((r) => r.subject))];
+        const topics = [...new Set(rows.map((r) => r.topic))];
+
+        setUniqueSubjects(subjects);
+        setUniqueTopics(topics);
       }
+    });
+  };
+
+  // ========================================================
+  // STEP 2: Select subject + topics
+  // ========================================================
+
+  const toggleTopic = (t: string) => {
+    if (selectedTopics.includes(t)) {
+      setSelectedTopics(selectedTopics.filter((x) => x !== t));
+    } else {
+      setSelectedTopics([...selectedTopics, t]);
+    }
+  };
+
+  // ========================================================
+  // STEP 3: Auto-generate questions
+  // ========================================================
+
+  const autoGenerate = () => {
+    if (!selectedSubject) {
+      alert("Choose a subject first");
+      return;
+    }
+    if (selectedTopics.length === 0) {
+      alert("Choose at least one topic");
+      return;
     }
 
-    setSaving(true);
-    try {
-      const isoStart = new Date(`${examDate}T${examStartTime}:00`).toISOString();
+    setGenerating(true);
 
-      const payload = {
-        title,
-        description,
-        duration_minutes: durationMinutes,
-        passing_score: passingScore,
-        start_time: isoStart,
-        questions: questions.map((q, index) => ({
-          ...q,
-          order_number: index,
-        })),
+    setTimeout(() => {
+      const filtered = questionBank.filter(
+        (q) =>
+          q.subject === selectedSubject &&
+          selectedTopics.includes(q.topic)
+      );
+
+      const easy = filtered.filter((q) => q.complexity.toLowerCase() === "easy");
+      const medium = filtered.filter((q) => q.complexity.toLowerCase() === "medium");
+      const hard = filtered.filter((q) => q.complexity.toLowerCase() === "hard");
+
+      const pick = (arr: QuestionBankItem[], count: number) => {
+        return arr.sort(() => 0.5 - Math.random()).slice(0, count);
       };
 
-      await api.post("/admin/exams", payload);
-      alert("Exam Created Successfully!");
-      onComplete();
-    } catch (err: any) {
-      alert(err.response?.data?.error || "Failed to create exam");
-    } finally {
-      setSaving(false);
-    }
+      const easyCount = Math.floor((complexity.easy / 100) * totalQuestions);
+      const medCount = Math.floor((complexity.medium / 100) * totalQuestions);
+      const hardCount = totalQuestions - easyCount - medCount;
+
+      const generated = [
+        ...pick(easy, easyCount),
+        ...pick(medium, medCount),
+        ...pick(hard, hardCount)
+      ];
+
+      setGeneratedQuestions(generated);
+      setGenerating(false);
+      setStep(4);
+    }, 800);
   };
 
+  // ========================================================
+  // STEP 4: Save exam (API later)
+  // ========================================================
+
+  const saveExam = () => {
+    alert("Exam Saved Successfully.\nBackend integration will be added next.");
+    onComplete();
+  };
+
+  const downloadTemplate = () => {
+    const csv =
+      `subject,complexity,topic,type,question,option1,option2,option3,option4,correct
+Math,easy,Algebra,single-choice,What is 2+2?,2,3,4,5,4`;
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "question_bank_template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+
+  // ========================================================
+  // UI STEPS
+  // ========================================================
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pb-20">
       {/* HEADER */}
-      <header className="bg-white border-b shadow-sm">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-3">
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-5xl mx-auto px-5 py-4 flex items-center justify-between">
+          <h1 className="text-xl font-bold">Create University Exam</h1>
+
           <button
             onClick={onCancel}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+            className="text-gray-600 hover:text-gray-900 text-sm"
           >
-            <ArrowLeft className="w-5 h-5" />
-            Back
+            Cancel
           </button>
-          <h1 className="text-2xl font-bold">Create Exam</h1>
         </div>
       </header>
 
-      {/* BODY */}
-      <main className="max-w-5xl mx-auto px-4 py-8">
-        <form onSubmit={handleSubmit} className="space-y-8">
-          {/* EXAM DETAILS */}
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Exam Details
-            </h2>
+      <main className="max-w-5xl mx-auto px-5 mt-10 space-y-10">
+        {/* ============================================= */}
+        {/* STEP INDICATOR */}
+        {/* ============================================= */}
+        <div className="flex items-center justify-between text-sm font-medium">
+          <span className={step >= 1 ? "text-blue-600" : "text-gray-400"}>
+            1. Upload Question Bank
+          </span>
+          <span className={step >= 2 ? "text-blue-600" : "text-gray-400"}>
+            2. Select Subject
+          </span>
+          <span className={step >= 3 ? "text-blue-600" : "text-gray-400"}>
+            3. Configure Exam
+          </span>
+          <span className={step >= 4 ? "text-blue-600" : "text-gray-400"}>
+            4. Preview & Save
+          </span>
+        </div>
 
-            <div className="space-y-4">
+        {/* ============================================= */}
+        {/* STEP 1: UPLOAD BANK */}
+        {/* ============================================= */}
+        {step === 1 && (
+
+          <div className="bg-white shadow-lg rounded-xl p-8 space-y-6">
+            <button
+              onClick={downloadTemplate}
+              className="w-full bg-gray-700 text-white py-3 rounded-lg hover:bg-gray-800 font-medium flex items-center justify-center gap-2"
+            >
+              Download Excel Template <FileSpreadsheet className="w-4 h-4" />
+            </button>
+
+            <h2 className="text-lg font-semibold">Upload Question Bank</h2>
+
+            <label className="border-2 border-dashed border-gray-300 rounded-lg p-10 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50">
+              <Upload className="w-12 h-12 text-gray-500 mb-3" />
+              <p className="text-gray-600">
+                Upload Excel/CSV file of the question bank
+              </p>
+
               <input
-                type="text"
-                className="w-full px-4 py-2 border rounded-lg"
-                placeholder="Exam Title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                required
+                type="file"
+                accept=".csv, .xlsx"
+                onChange={handleExcelUpload}
+                className="hidden"
               />
+            </label>
 
-              <textarea
-                className="w-full px-4 py-2 border rounded-lg"
-                rows={3}
-                placeholder="Description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                required
-              />
-
-              {/* SCHEDULED DATE & TIME */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium">Exam Date</label>
-                  <input
-                    type="date"
-                    className="w-full px-4 py-2 border rounded-lg"
-                    value={examDate}
-                    onChange={(e) => setExamDate(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium">Start Time</label>
-                  <input
-                    type="time"
-                    className="w-full px-4 py-2 border rounded-lg"
-                    value={examStartTime}
-                    onChange={(e) => setExamStartTime(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* DURATION / PASSING SCORE */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium">Duration (mins)</label>
-                  <input
-                    type="number"
-                    className="w-full px-4 py-2 border rounded-lg"
-                    value={durationMinutes}
-                    min={1}
-                    onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium">
-                    Passing Score (%)
-                  </label>
-                  <input
-                    type="number"
-                    className="w-full px-4 py-2 border rounded-lg"
-                    value={passingScore}
-                    min={0}
-                    max={100}
-                    onChange={(e) => setPassingScore(Number(e.target.value))}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* QUESTIONS SECTION */}
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">
-                Questions
-              </h2>
-
+            {questionBank.length > 0 && (
               <button
-                type="button"
-                onClick={addQuestion}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg"
+                onClick={() => setStep(2)}
+                className="mt-5 w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-medium flex items-center justify-center gap-2"
               >
-                <Plus className="w-4 h-4" /> Add Question
+                Continue <FileSpreadsheet className="w-4 h-4" />
               </button>
+            )}
+          </div>
+        )}
+
+        {/* ============================================= */}
+        {/* STEP 2: SUBJECT + TOPICS */}
+        {/* ============================================= */}
+        {step === 2 && (
+          <div className="bg-white shadow-lg rounded-xl p-8 space-y-6">
+            <h2 className="text-lg font-semibold">Choose Subject & Topics</h2>
+
+            {/* SUBJECT */}
+            <div>
+              <label className="font-medium block mb-2">Subject</label>
+              <select
+                className="w-full border rounded-lg px-4 py-2"
+                value={selectedSubject}
+                onChange={(e) => setSelectedSubject(e.target.value)}
+              >
+                <option value="">Select subject</option>
+                {uniqueSubjects.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {/* RENDER QUESTIONS */}
-            <div className="space-y-6">
-              {questions.map((q, index) => (
+            {/* TOPICS */}
+            <div>
+              <label className="font-medium block mb-2">Topics</label>
+
+              <div className="grid grid-cols-2 gap-3">
+                {uniqueTopics.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => toggleTopic(t)}
+                    className={`px-3 py-2 rounded-lg border text-sm ${selectedTopics.includes(t)
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-gray-100 border-gray-300"
+                      }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={() => setStep(3)}
+              className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-medium flex items-center justify-center gap-2"
+            >
+              Continue <ListChecks className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* ============================================= */}
+        {/* STEP 3: CONFIGURE EXAM */}
+        {/* ============================================= */}
+        {step === 3 && (
+          <div className="bg-white shadow-lg rounded-xl p-8 space-y-6">
+            <h2 className="text-lg font-semibold">Configure Exam</h2>
+
+            {/* TOTAL QUESTIONS */}
+            <div>
+              <label className="block font-medium mb-2">
+                Total Questions
+              </label>
+              <input
+                type="number"
+                className="w-full border rounded-lg px-4 py-2"
+                value={totalQuestions}
+                onChange={(e) => setTotalQuestions(Number(e.target.value))}
+              />
+            </div>
+
+            {/* QUICK START */}
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={quickStart}
+                onChange={() => setQuickStart(!quickStart)}
+              />
+              <span className="font-medium">
+                Quick Start (Auto complexity and topics)
+              </span>
+            </div>
+
+            {/* COMPLEXITY SLIDERS */}
+            {!quickStart && (
+              <>
+                <label className="block font-medium">Complexity %</label>
+
+                {["easy", "medium", "hard"].map((level) => (
+                  <div key={level} className="mb-4">
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="capitalize">{level}</span>
+                      <span>{complexity[level]}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={complexity[level]}
+                      onChange={(e) =>
+                        setComplexity({
+                          ...complexity,
+                          [level]: Number(e.target.value)
+                        })
+                      }
+                      className="w-full"
+                    />
+                  </div>
+                ))}
+              </>
+            )}
+
+            <button
+              onClick={autoGenerate}
+              className="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 font-medium flex items-center justify-center gap-2"
+            >
+              {generating ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Generating...
+                </>
+              ) : (
+                <>
+                  Auto Generate Questions <Wand2 className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* ============================================= */}
+        {/* STEP 4: PREVIEW & SAVE */}
+        {/* ============================================= */}
+        {step === 4 && (
+          <div className="bg-white shadow-lg rounded-xl p-8 space-y-6">
+            <h2 className="text-lg font-semibold">Preview Questions</h2>
+
+            <div className="max-h-[400px] overflow-y-auto border rounded-xl p-5 bg-gray-50">
+              {generatedQuestions.map((q, i) => (
                 <div
-                  key={index}
-                  className="border border-gray-200 rounded-lg p-5 bg-gray-50"
+                  key={i}
+                  className="mb-4 p-4 bg-white border rounded-lg shadow-sm"
                 >
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className="font-semibold text-gray-800">
-                      Question #{index + 1}
-                    </h3>
-                    {questions.length > 1 && (
-                      <button
-                        type="button"
-                        className="text-red-600 hover:text-red-800"
-                        onClick={() => removeQuestion(index)}
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    )}
+                  <div className="flex justify-between">
+                    <p className="font-medium">{i + 1}. {q.question}</p>
+                    <span className="text-xs bg-gray-200 px-2 py-1 rounded-lg">{q.complexity}</span>
                   </div>
 
-                  <textarea
-                    className="w-full px-4 py-2 border rounded-lg mb-4"
-                    placeholder="Question text"
-                    value={q.question_text}
-                    onChange={(e) =>
-                      updateQuestion(index, "question_text", e.target.value)
-                    }
-                    required
-                  />
-
-                  {/* OPTIONS */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <input
-                      className="px-3 py-2 border rounded-lg"
-                      placeholder="Option A"
-                      value={q.option_a}
-                      onChange={(e) =>
-                        updateQuestion(index, "option_a", e.target.value)
-                      }
-                      required
-                    />
-
-                    <input
-                      className="px-3 py-2 border rounded-lg"
-                      placeholder="Option B"
-                      value={q.option_b}
-                      onChange={(e) =>
-                        updateQuestion(index, "option_b", e.target.value)
-                      }
-                      required
-                    />
-
-                    <input
-                      className="px-3 py-2 border rounded-lg"
-                      placeholder="Option C"
-                      value={q.option_c}
-                      onChange={(e) =>
-                        updateQuestion(index, "option_c", e.target.value)
-                      }
-                      required
-                    />
-
-                    <input
-                      className="px-3 py-2 border rounded-lg"
-                      placeholder="Option D"
-                      value={q.option_d}
-                      onChange={(e) =>
-                        updateQuestion(index, "option_d", e.target.value)
-                      }
-                      required
-                    />
-                  </div>
-
-                  {/* CORRECT ANSWER & POINTS */}
-                  <div className="grid grid-cols-2 gap-4 mt-4">
-                    <div>
-                      <label className="text-sm font-medium">
-                        Correct Answer
-                      </label>
-                      <select
-                        className="w-full px-3 py-2 border rounded-lg"
-                        value={q.correct_answer}
-                        onChange={(e) =>
-                          updateQuestion(
-                            index,
-                            "correct_answer",
-                            e.target.value as "A" | "B" | "C" | "D"
-                          )
-                        }
-                      >
-                        <option value="A">A</option>
-                        <option value="B">B</option>
-                        <option value="C">C</option>
-                        <option value="D">D</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-medium">Points</label>
-                      <input
-                        type="number"
-                        className="w-full px-3 py-2 border rounded-lg"
-                        value={q.points}
-                        onChange={(e) =>
-                          updateQuestion(index, "points", Number(e.target.value))
-                        }
-                        min={1}
-                      />
-                    </div>
-                  </div>
+                  <ul className="text-sm text-gray-700 mt-2 ml-4 list-disc">
+                    {q.option1 && <li>{q.option1}</li>}
+                    {q.option2 && <li>{q.option2}</li>}
+                    {q.option3 && <li>{q.option3}</li>}
+                    {q.option4 && <li>{q.option4}</li>}
+                  </ul>
                 </div>
               ))}
             </div>
-          </div>
 
-          {/* SUBMIT BUTTON */}
-          <button
-            type="submit"
-            disabled={saving}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold"
-          >
-            {saving ? "Saving..." : "Create Exam"}
-          </button>
-        </form>
+            <button
+              onClick={saveExam}
+              className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 font-medium flex items-center justify-center gap-2"
+            >
+              Save Exam <CheckCircle2 className="w-5 h-5" />
+            </button>
+          </div>
+        )}
       </main>
     </div>
   );

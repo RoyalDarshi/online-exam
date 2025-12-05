@@ -19,7 +19,13 @@ func main() {
 	}
 
 	database.Connect()
-	database.DB.AutoMigrate(&models.User{}, &models.Exam{}, &models.Question{}, &models.ExamAttempt{})
+	database.DB.AutoMigrate(
+		&models.User{},
+		&models.Exam{},
+		&models.Question{},
+		&models.ExamAttempt{},
+		&models.QuestionBank{}, // ⬅ add this
+	)
 
 	r := gin.Default()
 
@@ -51,13 +57,22 @@ func main() {
 		admin := api.Group("/admin")
 		admin.Use(middleware.AdminOnly())
 		{
+			// Exam routes
+			admin.GET("/exams", controllers.GetExams)
 			admin.POST("/exams", controllers.CreateExam)
-			admin.PUT("/exams/:id", controllers.UpdateExam)
 			admin.DELETE("/exams/:id", controllers.DeleteExam)
-
+			admin.PUT("/exams/:id", controllers.UpdateExamWithQuestions)
 			admin.GET("/exams/:id/attempts", controllers.GetExamAttempts)
 			admin.GET("/attempts/:id", controllers.GetAttemptDetails)
+
+			// QUESTION BANK ROUTES (REQUIRED)
+			admin.POST("/question-bank/upload", controllers.UploadQuestionBank)
+			admin.GET("/question-bank", controllers.GetQuestionBank)
+			admin.PUT("/question-bank/:id", controllers.UpdateQuestionBankRow)
+			admin.DELETE("/question-bank/:id", controllers.DeleteQuestionBankRow)
+			admin.GET("/question-bank/analytics", controllers.GetQuestionBankAnalytics)
 		}
+
 	}
 
 	port := os.Getenv("PORT")

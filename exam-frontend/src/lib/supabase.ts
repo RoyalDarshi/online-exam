@@ -19,6 +19,8 @@ export type Exam = {
   description: string;
   duration_minutes: number;
   passing_score: number;
+  start_time: string;
+  end_time: string;
   is_active: boolean;
   created_by: string;
   created_at: string;

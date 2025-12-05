@@ -1,17 +1,31 @@
-import { useState, useEffect } from 'react';
-import api from '../lib/api';
-import { useAuth } from '../contexts/AuthContext';
-import { Plus, Trash2, Users, FileText } from 'lucide-react';
-import { CreateExam } from './CreateExam';
-import { ExamResults } from './ExamResults';
-import { Exam } from '../lib/supabase';
+import { useState, useEffect } from "react";
+import api from "../lib/api";
+
+import {
+  Plus,
+  Trash2,
+  CalendarDays,
+  FileText,
+  Pencil,
+  BarChart,
+  Database,
+} from "lucide-react";
+
+import { CreateExam } from "./CreateExam";
+import { EditExam } from "./EditExam";
+import { ExamResults } from "./ExamResults";
+import { AdminExamCalendar } from "./AdminExamCalendar";
+import { QuestionBankManager } from "./QuestionBankManager"; // NEW MANAGER
 
 export function AdminDashboard() {
-  const { signOut } = useAuth();
-  const [exams, setExams] = useState<Exam[]>([]);
+  const [exams, setExams] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'list' | 'create' | 'results'>('list');
-  const [selectedExamId, setSelectedExamId] = useState<string>('');
+
+  const [view, setView] = useState<
+    "list" | "create" | "edit" | "results" | "calendar" | "bank"
+  >("list");
+
+  const [selectedExam, setSelectedExam] = useState(null);
 
   useEffect(() => {
     loadExams();
@@ -19,151 +33,211 @@ export function AdminDashboard() {
 
   async function loadExams() {
     try {
-      const response = await api.get('/exams'); // This hits http://localhost:8080/api/exams
-      setExams(response.data);
-    } catch (error) {
-      console.error('Error loading exams:', error);
+      const res = await api.get("/admin/exams");
+      setExams(res.data || []);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to load exams");
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('Are you sure?')) return;
+  async function deleteExam(id: number) {
+    if (!window.confirm("Are you sure you want to delete this exam?")) return;
+
     try {
-      await api.delete(`/admin/exams/${id}`); // Ensure you added a DELETE route in Go
-      setExams(exams.filter(e => e.id !== id));
-    } catch (error) {
-      alert('Failed to delete');
+      await api.delete(`/admin/exams/${id}`);
+      alert("Exam deleted");
+      loadExams();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete exam");
     }
   }
 
-  async function handleToggleActive(exam: Exam) {
-    try {
-      await api.put(`/admin/exams/${exam.id}`, { is_active: !exam.is_active });
-      setExams(exams.map(e => e.id === exam.id ? { ...e, is_active: !e.is_active } : e));
-    } catch (error) {
-      alert('Failed to update');
-    }
+  // ===========================
+  // VIEW SWITCHING
+  // ===========================
+
+  if (view === "bank") {
+    return <QuestionBankManager onBack={() => setView("list")} />;
   }
 
-
-  function handleViewResults(examId: string) {
-    setSelectedExamId(examId);
-    setView('results');
+  if (view === "calendar") {
+    return (
+      <AdminExamCalendar exams={exams} onBack={() => setView("list")} />
+    );
   }
 
-  if (view === 'create') {
+  if (view === "create") {
     return (
       <CreateExam
         onComplete={() => {
-          setView('list');
+          setView("list");
           loadExams();
         }}
-        onCancel={() => setView('list')}
+        onCancel={() => setView("list")}
       />
     );
   }
 
-  if (view === 'results') {
+  if (view === "edit" && selectedExam) {
     return (
-      <ExamResults
-        examId={selectedExamId}
-        onBack={() => setView('list')}
+      <EditExam
+        examId={selectedExam.id}
+        onBack={() => {
+          setSelectedExam(null);
+          setView("list");
+          loadExams();
+        }}
       />
     );
   }
+
+  if (view === "results" && selectedExam) {
+    return (
+      <ExamResults
+        examId={selectedExam.id}
+        onBack={() => {
+          setSelectedExam(null);
+          setView("list");
+        }}
+      />
+    );
+  }
+
+  // ===========================
+  // EXAMS LIST VIEW
+  // ===========================
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* HEADER */}
       <header className="bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-            <p className="text-sm text-gray-600 mt-1">Manage exams and view results</p>
+
+          <h1 className="text-2xl font-bold text-gray-900">
+            Admin Dashboard
+          </h1>
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => setView("bank")}
+              className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition"
+            >
+              <Database className="w-5 h-5" />
+              Question Bank
+            </button>
+
+            <button
+              onClick={() => setView("calendar")}
+              className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition"
+            >
+              <CalendarDays className="w-5 h-5" />
+              Calendar
+            </button>
+
+            <button
+              onClick={() => setView("create")}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+            >
+              <Plus className="w-5 h-5" />
+              Create Exam
+            </button>
           </div>
-          <button
-            onClick={signOut}
-            className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium"
-          >
-            Sign Out
-          </button>
         </div>
       </header>
 
+      {/* BODY */}
       <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-900">All Exams</h2>
-          <button
-            onClick={() => setView('create')}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium"
-          >
-            <Plus className="w-5 h-5" />
-            Create Exam
-          </button>
-        </div>
+        <h2 className="text-xl font-semibold text-gray-900 mb-6">
+          All Exams
+        </h2>
 
         {loading ? (
           <div className="flex justify-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
           </div>
         ) : exams.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-md p-12 text-center">
+          <div className="bg-white p-12 text-center shadow-md rounded-lg">
             <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No exams yet</h3>
-            <p className="text-gray-600 mb-6">Create your first exam to get started</p>
-            <button
-              onClick={() => setView('create')}
-              className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-medium"
-            >
-              <Plus className="w-5 h-5" />
-              Create Exam
-            </button>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              No exams found
+            </h3>
+            <p className="text-gray-600">
+              Start by creating a new exam.
+            </p>
           </div>
         ) : (
-          <div className="grid gap-4">
-            {exams.map(exam => (
-              <div key={exam.id} className="bg-white rounded-lg shadow-md p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900">{exam.title}</h3>
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${exam.is_active
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-gray-100 text-gray-700'
-                          }`}
-                      >
-                        {exam.is_active ? 'Active' : 'Inactive'}
-                      </span>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {exams.map((exam: any) => (
+              <div
+                key={exam.id}
+                className="bg-white rounded-lg shadow-md hover:shadow-lg transition border border-gray-200 overflow-hidden"
+              >
+                <div className="p-6">
+                  {/* Exam Title */}
+                  <h3 className="text-lg font-bold text-gray-900 mb-1">
+                    {exam.title}
+                  </h3>
+
+                  <p className="text-gray-600 text-sm line-clamp-2">
+                    {exam.description}
+                  </p>
+
+                  {/* Info */}
+                  <div className="mt-4 flex flex-wrap gap-4 text-sm text-gray-600">
+                    <div className="flex items-center gap-1">
+                      <CalendarDays className="w-4 h-4" />
+                      <span>{exam.duration_minutes} mins</span>
                     </div>
-                    <p className="text-gray-600 mb-3">{exam.description}</p>
-                    <div className="flex items-center gap-6 text-sm text-gray-500">
-                      <span>Duration: {exam.duration_minutes} minutes</span>
-                      <span>Passing Score: {exam.passing_score}%</span>
-                      <span>Created: {new Date(exam.created_at).toLocaleDateString()}</span>
+                    <div className="flex items-center gap-1">
+                      <BarChart className="w-4 h-4 text-emerald-600" />
+                      <span>Pass {exam.passing_score}%</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 ml-4">
+
+                  {/* Start Time */}
+                  <div className="mt-3">
+                    <p className="text-xs text-gray-500">Start Time (IST)</p>
+                    <p className="text-sm font-semibold text-gray-800">
+                      {exam.start_time
+                        ? new Date(exam.start_time).toLocaleString("en-IN", {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        })
+                        : "Not scheduled"}
+                    </p>
+                  </div>
+
+                  {/* ACTIONS */}
+                  <div className="mt-6 grid grid-cols-3 gap-2">
                     <button
-                      onClick={() => handleViewResults(exam.id)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                      title="View Results"
+                      onClick={() => {
+                        setSelectedExam(exam);
+                        setView("edit");
+                      }}
+                      className="flex items-center justify-center gap-1 bg-yellow-500 text-white py-2 rounded-lg hover:bg-yellow-600 text-sm"
                     >
-                      <Users className="w-5 h-5" />
+                      <Pencil className="w-4 h-4" /> Edit
                     </button>
+
                     <button
-                      onClick={() => handleToggleActive(exam)}
-                      className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition font-medium"
+                      onClick={() => {
+                        setSelectedExam(exam);
+                        setView("results");
+                      }}
+                      className="flex items-center justify-center gap-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 text-sm"
                     >
-                      {exam.is_active ? 'Deactivate' : 'Activate'}
+                      <BarChart className="w-4 h-4" /> Results
                     </button>
+
                     <button
-                      onClick={() => handleDelete(exam.id)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-                      title="Delete"
+                      onClick={() => deleteExam(exam.id)}
+                      className="flex items-center justify-center gap-1 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 text-sm"
                     >
-                      <Trash2 className="w-5 h-5" />
+                      <Trash2 className="w-4 h-4" /> Delete
                     </button>
                   </div>
                 </div>
