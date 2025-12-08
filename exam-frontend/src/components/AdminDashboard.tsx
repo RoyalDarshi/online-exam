@@ -9,6 +9,7 @@ import {
   Pencil,
   BarChart,
   Database,
+  LogOut,
 } from "lucide-react";
 
 import { CreateExam } from "./CreateExam";
@@ -16,16 +17,20 @@ import { EditExam } from "./EditExam";
 import { ExamResults } from "./ExamResults";
 import { AdminExamCalendar } from "./AdminExamCalendar";
 import { QuestionBankManager } from "./QuestionBankManager"; // NEW MANAGER
+import { CreateExamFromBank } from "./CreateExamFromBank";
+import { useAuth } from "../contexts/AuthContext";
 
 export function AdminDashboard() {
   const [exams, setExams] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [view, setView] = useState<
-    "list" | "create" | "edit" | "results" | "calendar" | "bank"
+    "list" | "create" | "edit" | "results" | "calendar" | "bank" | "generator"
   >("list");
 
   const [selectedExam, setSelectedExam] = useState(null);
+
+  const { signOut } = useAuth();
 
   useEffect(() => {
     loadExams();
@@ -67,6 +72,18 @@ export function AdminDashboard() {
   if (view === "calendar") {
     return (
       <AdminExamCalendar exams={exams} onBack={() => setView("list")} />
+    );
+  }
+
+  if (view === "generator") {
+    return (
+      <CreateExamFromBank
+        onBack={() => setView("list")}
+        onComplete={() => {
+          setView("list");
+          loadExams();
+        }}
+      />
     );
   }
 
@@ -139,11 +156,25 @@ export function AdminDashboard() {
             </button>
 
             <button
+              onClick={() => setView("generator")}
+              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
+            >
+              <Database className="w-5 h-5" />
+              Generate from Bank
+            </button>
+
+            <button
               onClick={() => setView("create")}
               className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
             >
               <Plus className="w-5 h-5" />
               Create Exam
+            </button>
+            <button
+              onClick={signOut}
+              className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium"
+            >
+              Sign Out
             </button>
           </div>
         </div>

@@ -7,14 +7,14 @@ export type User = {
   id: string;
   email: string;
   full_name: string;
-  role: 'admin' | 'student';
+  role: 'admin' | 'student' | 'teacher';
 };
 
 type AuthContextType = {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, fullName: string, role: 'admin' | 'student') => Promise<void>;
+  signUp: (email: string, password: string, fullName: string, role: 'admin' | 'student' | 'teacher') => Promise<void>;
   signOut: () => void;
 };
 
@@ -50,7 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(user);
   }
 
-  async function signUp(email: string, password: string, fullName: string, role: 'admin' | 'student') {
+  async function signUp(email: string, password: string, fullName: string, role: 'admin' | 'student' | 'teacher') {
     // Call Go Backend
     await axios.post('http://localhost:8080/api/auth/register', {
       email,

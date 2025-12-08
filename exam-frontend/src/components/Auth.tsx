@@ -7,7 +7,7 @@ export function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState<'admin' | 'student'>('student');
+  const [role, setRole] = useState<'admin' | 'student' | 'teacher'>('student');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { signIn, signUp } = useAuth();
@@ -99,12 +99,14 @@ export function Auth() {
               <select
                 id="role"
                 value={role}
-                onChange={(e) => setRole(e.target.value as 'admin' | 'student')}
+                onChange={(e) => setRole(e.target.value as 'admin' | 'student' | 'teacher')}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
               >
                 <option value="student">Student</option>
+                <option value="teacher">Teacher</option>
                 <option value="admin">Admin</option>
               </select>
+
             </div>
           )}
 

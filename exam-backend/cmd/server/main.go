@@ -19,13 +19,16 @@ func main() {
 	}
 
 	database.Connect()
-	database.DB.AutoMigrate(
+	// ✅ Include QuestionBank in migrations
+	if err := database.DB.AutoMigrate(
 		&models.User{},
 		&models.Exam{},
 		&models.Question{},
 		&models.ExamAttempt{},
-		&models.QuestionBank{}, // ⬅ add this
-	)
+		&models.QuestionBank{},
+	); err != nil {
+		log.Println("AutoMigrate error:", err)
+	}
 
 	r := gin.Default()
 
@@ -43,7 +46,7 @@ func main() {
 	api := r.Group("/api")
 	api.Use(middleware.AuthMiddleware())
 	{
-		// exams
+		// exams (shared)
 		api.GET("/exams", controllers.GetExams)
 		api.GET("/exams/:id", controllers.GetExamDetails)
 
@@ -57,7 +60,7 @@ func main() {
 		admin := api.Group("/admin")
 		admin.Use(middleware.AdminOnly())
 		{
-			// Exam routes
+			// classic exam CRUD
 			admin.GET("/exams", controllers.GetExams)
 			admin.POST("/exams", controllers.CreateExam)
 			admin.DELETE("/exams/:id", controllers.DeleteExam)
@@ -65,14 +68,28 @@ func main() {
 			admin.GET("/exams/:id/attempts", controllers.GetExamAttempts)
 			admin.GET("/attempts/:id", controllers.GetAttemptDetails)
 
-			// QUESTION BANK ROUTES (REQUIRED)
-			admin.POST("/question-bank/upload", controllers.UploadQuestionBank)
-			admin.GET("/question-bank", controllers.GetQuestionBank)
-			admin.PUT("/question-bank/:id", controllers.UpdateQuestionBankRow)
-			admin.DELETE("/question-bank/:id", controllers.DeleteQuestionBankRow)
-			admin.GET("/question-bank/analytics", controllers.GetQuestionBankAnalytics)
+			// NEW: create exam from teacher question bank
+			admin.POST("/exams/preview", controllers.ExamBankPreview)
+			admin.POST("/exams/from-bank", controllers.CreateExamFromBank)
+
+			// NEW: subject/topic helpers (read-only)
+			admin.GET("/bank/subjects", controllers.AdminGetSubjects)
+			admin.GET("/bank/subjects/:subject/topics", controllers.AdminGetTopicsForSubject)
+
+			// ❌ Admin NO longer uploads/edit/deletes question bank.
+			// That is ONLY for teachers.
 		}
 
+		// teacher-only routes (you already have these; keep them)
+		teacher := api.Group("/teacher")
+		teacher.Use(middleware.TeacherOnly())
+		{
+			teacher.POST("/question-bank/upload", controllers.TeacherUploadQuestionBank)
+			teacher.GET("/question-bank", controllers.TeacherGetQuestionBank)
+			teacher.PUT("/question-bank/:id", controllers.TeacherUpdateQuestion)
+			teacher.DELETE("/question-bank/:id", controllers.TeacherDeleteQuestion)
+			teacher.GET("/question-bank/template", controllers.TeacherDownloadTemplate)
+		}
 	}
 
 	port := os.Getenv("PORT")
