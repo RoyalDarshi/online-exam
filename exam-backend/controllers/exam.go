@@ -596,6 +596,7 @@ func UpdateExamWithQuestions(c *gin.Context) {
 	for _, q := range input.Questions {
 		newQ := models.Question{
 			ExamID:        exam.ID,
+			Type:          q.Type,
 			QuestionText:  q.QuestionText,
 			OptionA:       q.OptionA,
 			OptionB:       q.OptionB,

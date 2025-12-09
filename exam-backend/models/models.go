@@ -104,6 +104,7 @@ type ExamAttempt struct {
 
 type QuestionInput struct {
 	QuestionText  string `json:"question_text"`
+	Type          string `json:"type"`
 	OptionA       string `json:"option_a"`
 	OptionB       string `json:"option_b"`
 	OptionC       string `json:"option_c"`

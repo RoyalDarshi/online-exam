@@ -310,7 +310,15 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
                 <div>
                   <span className="text-sm font-bold text-gray-400 uppercase tracking-wider">Question {currentQIndex + 1}</span>
                   <div className="flex items-center gap-4 mt-1">
-                    <span className="text-sm font-semibold text-gray-600">Marks: <span className="text-green-600">+{currentQ.points}</span></span>
+                    <div className="flex items-center gap-4 mt-1">
+                      <span className="text-sm font-semibold text-blue-600 uppercase">
+                        {currentQ.type === "multi-select" ? "MULTI SELECT" : "SINGLE SELECT"}
+                      </span>
+
+                      <span className="text-sm font-semibold text-gray-600">
+                        Marks: <span className="text-green-600">+{currentQ.points}</span>
+                      </span>
+                    </div>
                     {exam.enable_negative_marking && (
                       <span className="text-sm font-semibold text-gray-600">Neg: <span className="text-red-500">-{currentQ.negative_points}</span></span>
                     )}

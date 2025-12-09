@@ -326,6 +326,7 @@ func CreateExamFromBank(c *gin.Context) {
 			questionsToInsert = append(questionsToInsert, models.Question{
 				ExamID:         exam.ID,
 				QuestionText:   qb.QuestionText,
+				Type:           qb.Type,
 				OptionA:        qb.Option1,
 				OptionB:        qb.Option2,
 				OptionC:        qb.Option3,
@@ -448,6 +449,7 @@ func RegenerateExam(c *gin.Context) {
 				questionsToInsert = append(questionsToInsert, models.Question{
 					ExamID:         exam.ID,
 					QuestionText:   qb.QuestionText,
+					Type:           qb.Type,
 					OptionA:        qb.Option1,
 					OptionB:        qb.Option2,
 					OptionC:        qb.Option3,
