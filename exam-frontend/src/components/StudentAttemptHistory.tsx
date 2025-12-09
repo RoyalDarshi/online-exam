@@ -1,22 +1,18 @@
 // src/components/StudentAttemptHistory.tsx
 
-import { useState, useEffect } from 'react';
-import api from '../lib/api';
-import { ArrowLeft, CheckCircle, XCircle, Loader2, Award, Eye } from 'lucide-react';
-
-// Assuming you've created src/types/models.ts
-import { AttemptHistory } from '../types/models';
+import { useEffect, useState } from "react";
+import api from "../lib/api";
+import { ExamAttempt } from "../types/models";
+import { ChevronLeft, Eye } from "lucide-react";
 
 type Props = {
     onBack: () => void;
+    onOpenReview?: (attempt: ExamAttempt) => void;
 };
 
-export function StudentAttemptHistory({ onBack }: Props) {
-    const [attempts, setAttempts] = useState<AttemptHistory[]>([]);
+export function StudentAttemptHistory({ onBack, onOpenReview }: Props) {
+    const [attempts, setAttempts] = useState<ExamAttempt[]>([]);
     const [loading, setLoading] = useState(true);
-
-    // Review feature (e.g., showing a detailed answer sheet, but for now we just track state)
-    const [reviewAttemptId, setReviewAttemptId] = useState<string | null>(null);
 
     useEffect(() => {
         loadHistory();
@@ -24,123 +20,140 @@ export function StudentAttemptHistory({ onBack }: Props) {
 
     async function loadHistory() {
         try {
-            // New API endpoint for students to view their history
-            const res = await api.get('/student/attempts');
+            const res = await api.get("/student/attempts");
             setAttempts(res.data || []);
         } catch (err) {
-            console.error('Error loading history:', err);
+            console.error("Failed to load attempt history", err);
         } finally {
             setLoading(false);
         }
     }
 
-    // In a real application, you would create a StudentAttemptReview component 
-    // similar to AdminAttemptReview to show the questions, answers, and corrections.
-    if (reviewAttemptId) {
+    const getPercentage = (a: ExamAttempt) => {
+        if (!a.total_points) return 0;
+        return Math.round((a.score / a.total_points) * 100);
+    };
+
+    const getResultBadge = (a: ExamAttempt) => {
+        if (a.is_terminated)
+            return (
+                <span className="px-3 py-1 text-xs font-bold rounded-full bg-orange-100 text-orange-700 border border-orange-300">
+                    TERMINATED
+                </span>
+            );
+
+        if (a.passed)
+            return (
+                <span className="px-3 py-1 text-xs font-bold rounded-full bg-green-100 text-green-700 border border-green-300">
+                    PASSED
+                </span>
+            );
+
         return (
-            <div className="min-h-screen bg-gray-100 p-8">
-                <button
-                    onClick={() => setReviewAttemptId(null)}
-                    className="flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-6"
-                >
-                    <ArrowLeft className="w-5 h-5" /> Back to History
-                </button>
-                <h2 className='text-3xl font-bold text-gray-800 mb-6'>
-                    Review Attempt: {attempts.find(a => a.id === reviewAttemptId)?.exam.title}
-                </h2>
-                <div className='bg-white p-8 rounded-xl shadow-lg'>
-                    <p className='text-lg text-gray-600'>
-                        *Review feature coming soon!* This is where a detailed view of your submitted answers and the correct answers would be displayed.
-                    </p>
-                </div>
+            <span className="px-3 py-1 text-xs font-bold rounded-full bg-red-100 text-red-700 border border-red-300">
+                FAILED
+            </span>
+        );
+    };
+
+    if (loading)
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <p className="text-gray-500">Loading history...</p>
             </div>
-        )
-    }
+        );
 
     return (
-        <div className="min-h-screen bg-gray-100 p-8">
-            <button
-                onClick={onBack}
-                className="flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-6"
-            >
-                <ArrowLeft className="w-5 h-5" /> Back to Available Exams
-            </button>
+        <div className="min-h-screen bg-gray-100 p-6">
+            {/* Header */}
+            <div className="max-w-5xl mx-auto mb-6">
+                <button
+                    onClick={onBack}
+                    className="flex items-center gap-2 text-blue-600 font-semibold mb-4"
+                >
+                    <ChevronLeft className="w-5 h-5" /> Back
+                </button>
 
-            <h2 className="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
-                <Award className='w-8 h-8 text-yellow-600' /> Exam History & Results
-            </h2>
+                <h1 className="text-2xl font-bold text-gray-800 mb-1">Exam History</h1>
+                <p className="text-gray-600">Your past exam attempts are listed below.</p>
+            </div>
 
-            {loading && <Loader2 className='w-6 h-6 animate-spin text-blue-600 mx-auto' />}
+            {/* Attempts List */}
+            <div className="max-w-5xl mx-auto grid gap-6">
+                {attempts.map((attempt) => {
+                    const percent = getPercentage(attempt);
 
-            {!loading && attempts.length === 0 && (
-                <div className="bg-white p-6 rounded-lg shadow-md text-center">
-                    <p className="text-lg text-gray-500">You have no recorded exam attempts.</p>
-                </div>
-            )}
+                    return (
+                        <div
+                            key={attempt.id}
+                            className="bg-white p-6 rounded-xl shadow border border-gray-200"
+                        >
+                            {/* Top Row */}
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <h2 className="text-xl font-bold text-gray-900">{attempt.exam.title}</h2>
+                                    <p className="text-sm text-gray-600 mt-1">
+                                        Attempted: {new Date(attempt.started_at).toLocaleString()}
+                                    </p>
+                                </div>
 
-            {!loading && attempts.length > 0 && (
-                <div className="bg-white rounded-xl shadow-xl overflow-hidden">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Exam Title</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted On</th>
-                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
-                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Warnings</th>
-                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {attempts.map(attempt => {
-                                const submittedDate = attempt.submitted_at ? new Date(attempt.submitted_at).toLocaleString() : 'N/A';
-                                const scoreColor = attempt.passed ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50';
+                                {getResultBadge(attempt)}
+                            </div>
 
-                                return (
-                                    <tr key={attempt.id} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{attempt.exam.title}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            {attempt.is_terminated ? (
-                                                <span className='text-red-500 font-semibold'>Terminated ({attempt.termination_reason})</span>
-                                            ) : (
-                                                submittedDate
-                                            )}
-                                        </td>
-                                        <td className={`px-6 py-4 whitespace-nowrap text-center text-sm font-bold ${scoreColor}`}>
-                                            {attempt.score} / {attempt.total_points}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
-                                            {attempt.passed ? (
-                                                <span className='inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800'>
-                                                    <CheckCircle className='w-4 h-4 mr-1' /> PASSED
-                                                </span>
-                                            ) : (
-                                                <span className='inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800'>
-                                                    <XCircle className='w-4 h-4 mr-1' /> FAILED
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
-                                            <span className={`${attempt.tab_switches > 0 ? 'text-red-500' : 'text-gray-500'}`}>
-                                                {attempt.tab_switches}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                                            <button
-                                                onClick={() => setReviewAttemptId(attempt.id)}
-                                                className="flex items-center gap-2 bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition mx-auto"
-                                            >
-                                                <Eye className="w-4 h-4" />
-                                                Review
-                                            </button>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            )}
+                            {/* Stats */}
+                            <div className="grid grid-cols-3 md:grid-cols-6 gap-4 text-center mb-4">
+                                <div className="p-3 rounded-lg bg-blue-50">
+                                    <p className="text-sm text-blue-700 font-semibold">Score</p>
+                                    <p className="text-lg font-bold text-blue-800">{attempt.score}</p>
+                                </div>
+
+                                <div className="p-3 rounded-lg bg-cyan-50">
+                                    <p className="text-sm text-cyan-700 font-semibold">Percent</p>
+                                    <p className="text-lg font-bold text-cyan-800">{percent}%</p>
+                                </div>
+
+                                <div className="p-3 rounded-lg bg-purple-50">
+                                    <p className="text-sm text-purple-700 font-semibold">Total Marks</p>
+                                    <p className="text-lg font-bold text-purple-800">{attempt.total_points}</p>
+                                </div>
+
+                                <div className="p-3 rounded-lg bg-gray-100">
+                                    <p className="text-sm text-gray-700 font-semibold">Pass %</p>
+                                    <p className="text-lg font-bold text-gray-800">{attempt.exam.passing_score}%</p>
+                                </div>
+
+                                <div className="p-3 rounded-lg bg-yellow-50">
+                                    <p className="text-sm text-yellow-700 font-semibold">Status</p>
+                                    <p className="text-lg font-bold text-yellow-800">
+                                        {attempt.passed ? "Passed" : "Failed"}
+                                    </p>
+                                </div>
+
+                                <div className="p-3 rounded-lg bg-red-50">
+                                    <p className="text-sm text-red-700 font-semibold">Cheating?</p>
+                                    <p className="text-lg font-bold text-red-800">
+                                        {attempt.is_terminated ? "Yes" : "No"}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Review Button */}
+                            <div className="text-right">
+                                <button
+                                    onClick={async () => {
+                                        const res = await api.get(`/attempts/${attempt.id}`);
+                                        onOpenReview?.(res.data);
+                                    }}
+                                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition mx-auto md:ml-auto"
+                                >
+                                    <Eye className="w-4 h-4" />
+                                    View Review
+                                </button>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
         </div>
     );
 }

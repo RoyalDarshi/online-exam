@@ -466,16 +466,25 @@ func SubmitAttempt(c *gin.Context) {
 func GetAttemptDetails(c *gin.Context) {
 	id := c.Param("id")
 
+	// Load attempt + exam + questions
 	var attempt models.ExamAttempt
 	if err := database.DB.
-		Preload("Student").
 		Preload("Exam").
+		Preload("Exam.Questions", func(db *gorm.DB) *gorm.DB {
+			return db.Order("order_number asc")
+		}).
 		First(&attempt, "id = ?", id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Attempt not found", "requested_id": id})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Attempt not found"})
 		return
 	}
 
+	// We NEVER return user's answers during exam – only after submission
+	if attempt.SubmittedAt == nil {
+		attempt.Answers = map[string]string{} // hide answers
+	}
+
 	attempt.TimeLeftSeconds = computeTimeLeft(attempt.Exam)
+
 	c.JSON(http.StatusOK, attempt)
 }
 
