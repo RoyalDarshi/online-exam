@@ -19,7 +19,6 @@ func main() {
 	}
 
 	database.Connect()
-	// ✅ Include QuestionBank in migrations
 	if err := database.DB.AutoMigrate(
 		&models.User{},
 		&models.Exam{},
@@ -55,32 +54,31 @@ func main() {
 		api.POST("/attempts/submit", controllers.SubmitAttempt)
 		api.POST("/progress", controllers.UpdateProgress)
 		api.GET("/attempts/:id", controllers.GetAttemptDetails)
+		api.GET("/student/attempts", controllers.GetStudentAttempts)
 
 		// admin-only
 		admin := api.Group("/admin")
 		admin.Use(middleware.AdminOnly())
 		{
-			// classic exam CRUD
 			admin.GET("/exams", controllers.GetExams)
 			admin.POST("/exams", controllers.CreateExam)
 			admin.DELETE("/exams/:id", controllers.DeleteExam)
-			admin.PUT("/exams/:id", controllers.UpdateExamWithQuestions)
+
+			// ✅ CHANGED: Use UpdateExam (Metadata only) instead of UpdateExamWithQuestions
+			// This prevents admins from accidentally deleting questions they can't see.
+			admin.PUT("/exams/:id", controllers.UpdateExam)
+			admin.PUT("/exams/:id/regenerate", controllers.RegenerateExam)
+
 			admin.GET("/exams/:id/attempts", controllers.GetExamAttempts)
 			admin.GET("/attempts/:id", controllers.GetAttemptDetails)
 
-			// NEW: create exam from teacher question bank
 			admin.POST("/exams/preview", controllers.ExamBankPreview)
 			admin.POST("/exams/from-bank", controllers.CreateExamFromBank)
 
-			// NEW: subject/topic helpers (read-only)
 			admin.GET("/bank/subjects", controllers.AdminGetSubjects)
 			admin.GET("/bank/subjects/:subject/topics", controllers.AdminGetTopicsForSubject)
-
-			// ❌ Admin NO longer uploads/edit/deletes question bank.
-			// That is ONLY for teachers.
 		}
 
-		// teacher-only routes (you already have these; keep them)
 		teacher := api.Group("/teacher")
 		teacher.Use(middleware.TeacherOnly())
 		{

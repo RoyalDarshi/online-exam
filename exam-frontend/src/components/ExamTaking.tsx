@@ -1,15 +1,22 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../lib/api';
-import { Exam, Question } from '../lib/supabase';
 import { useProctoring, requestFullScreen } from '../hooks/useProctoring';
+import { Exam, Question } from '../types/models';
 import {
   Clock,
   Loader2,
-  CheckCircle,
   AlertTriangle,
   Maximize,
   AlertOctagon,
-  ShieldAlert
+  ShieldAlert,
+  Save,
+  Flag,
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  Circle,
+  Menu,
+  X
 } from 'lucide-react';
 
 type Props = {
@@ -20,594 +27,424 @@ type Props = {
 
 const MAX_WARNINGS = 3;
 const SNAPSHOT_INTERVAL = 30000;
-const FACE_CHECK_INTERVAL = 5000;
-
-declare global {
-  interface Window {
-    FaceDetector?: any;
-  }
-}
 
 export function ExamTaking({ exam, onComplete, onCancel }: Props) {
+  // --- State ---
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [markedForReview, setMarkedForReview] = useState<Set<string>>(new Set());
+
   const [attemptId, setAttemptId] = useState<string | null>(null);
-
   const [timeLeft, setTimeLeft] = useState<number>(0);
-  const [status, setStatus] =
-    useState<'loading' | 'idle' | 'active' | 'submitting'>('loading');
+  const [currentQIndex, setCurrentQIndex] = useState(0);
 
-  const [isFullScreen, setIsFullScreen] = useState(true);
-  const [faceDetected, setFaceDetected] = useState(true);
-
+  const [status, setStatus] = useState<'loading' | 'idle' | 'active' | 'submitting'>('loading');
   const [warnings, setWarnings] = useState(0);
-  const [cameraAccess, setCameraAccess] = useState(false);
-  const [online, setOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [isFullScreen, setIsFullScreen] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(false); // Mobile sidebar toggle
 
-  const videoRef = useRef<HTMLVideoElement>(null);
+  // --- Refs ---
+  const runOnce = useRef(false); // Fix for double execution
 
-  useProctoring({
-    isActive: status === 'active',
-    onViolation: (type) => handleViolation(type),
-  });
-
-  // 1. Load questions
+  // --- 1. API: Start Exam (Fixed for Race Conditions) ---
   useEffect(() => {
-    const loadQuestions = async () => {
+    if (runOnce.current) return; // Prevent double firing
+    runOnce.current = true;
+
+    async function initExam() {
       try {
-        const res = await api.get(`/exams/${exam.id}`);
-        if (res.data.questions) {
-          setQuestions(res.data.questions);
-          setStatus('idle');
+        // 1. Get Questions
+        const examRes = await api.get(`/exams/${exam.id}`);
+        if (examRes.data.questions) setQuestions(examRes.data.questions);
+
+        // 2. Start/Resume Attempt
+        const attemptRes = await api.post('/attempts/start', { exam_id: exam.id });
+        const attempt = attemptRes.data;
+
+        setAttemptId(attempt.id);
+
+        // Resume state
+        if (attempt.answers) setAnswers(attempt.answers);
+        if (attempt.time_left) setTimeLeft(attempt.time_left);
+        if (attempt.tab_switches) setWarnings(attempt.tab_switches);
+
+        // Check if already done
+        if (attempt.submitted_at || attempt.is_terminated) {
+          alert(`Attempt finished.`);
+          onComplete();
+          return;
         }
-      } catch (error) {
-        alert('Failed to load exam data.');
+
+        // Fullscreen check
+        if (!document.fullscreenElement) {
+          try { await requestFullScreen(); } catch (e) { }
+        }
+
+        setStatus('active');
+      } catch (err: any) {
+        console.error('Failed to start:', err);
+        alert(err.response?.data?.error || "Failed to load exam.");
+        setStatus('idle');
         onCancel();
       }
-    };
-    loadQuestions();
-    return () => stopCamera();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    }
+    initExam();
+  }, [exam.id]); // Removed onCancel from dependency to avoid re-trigger
 
-  // 2. Timer (client side, driven by server-provided timeLeft)
+  // --- 2. Timer & Autosave ---
+
   useEffect(() => {
     if (status !== 'active') return;
     if (timeLeft <= 0) {
-      finishExam();
+      if (timeLeft === 0) submitAttempt(false, 'Time Limit');
       return;
     }
-
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
+    const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
     return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, timeLeft]);
+  }, [timeLeft, status]);
 
-  // 3. Fullscreen watcher
-  useEffect(() => {
-    if (status !== 'active') return;
-
-    const handleScreenChange = () => {
-      const isFull = !!document.fullscreenElement;
-      setIsFullScreen(isFull);
-      if (!isFull) handleViolation('fullscreen_exit');
-    };
-
-    document.addEventListener('fullscreenchange', handleScreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleScreenChange);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
-
-  // 4. Autosave (answers + occasional snapshot)
-  useEffect(() => {
-    if (status !== 'active' || !attemptId) return;
-
-    const interval = setInterval(async () => {
-      const snapshot = captureSnapshot();
-      try {
-        await api.post('/progress', {
-          attempt_id: attemptId,
-          answers,
-          tab_switches: warnings,
-          snapshot,
-        });
-      } catch {
-        // ignore
-      }
-    }, SNAPSHOT_INTERVAL);
-
-    return () => clearInterval(interval);
-  }, [status, attemptId, answers, warnings]);
-
-  // 5. Tab / blur monitoring
-  useEffect(() => {
-    if (status !== 'active') return;
-
-    const onVisibilityChange = () => {
-      if (document.hidden) {
-        handleViolation('tab_switch');
-      }
-    };
-
-    const onBlur = () => {
-      handleViolation('window_blur');
-    };
-
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('blur', onBlur);
-
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('blur', onBlur);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
-
-  // 6. Keyboard restrictions
-  useEffect(() => {
-    if (status !== 'active') return;
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase();
-
-      if (
-        (e.ctrlKey || e.metaKey) &&
-        ['r', 'p', 's', 'u', 'c', 'v', 'x', 'a'].includes(key)
-      ) {
-        e.preventDefault();
-        handleViolation('keyboard_shortcut');
-      }
-
-      if (key === 'f12' || (e.ctrlKey && e.shiftKey && key === 'i')) {
-        e.preventDefault();
-        handleViolation('devtools');
-      }
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
-
-  // 7. FaceDetector (if supported)
-  useEffect(() => {
-    if (status !== 'active') return;
-    if (!window.FaceDetector) return;
-
-    const detector = new window.FaceDetector({ fastMode: true });
-
-    const interval = setInterval(async () => {
-      try {
-        if (!videoRef.current || videoRef.current.readyState < 2) return;
-
-        const faces = await detector.detect(videoRef.current);
-        setFaceDetected((prev) => {
-          const hasFace = !!faces && faces.length > 0;
-          if (!hasFace && prev) {
-            handleViolation('no_face_detected');
-          }
-          return hasFace;
-        });
-      } catch (err) {
-        console.warn('Face detection error:', err);
-      }
-    }, FACE_CHECK_INTERVAL);
-
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
-
-  // 8. Online / offline handling
-  useEffect(() => {
-    const handleOnline = async () => {
-      setOnline(true);
-      if (attemptId) {
-        try {
-          const res = await api.get(`/attempts/${attemptId}`);
-          setAnswers(res.data.answers || {});
-          if (typeof res.data.time_left === 'number') {
-            setTimeLeft(res.data.time_left);
-          }
-        } catch {
-          // ignore
-        }
-      }
-    };
-    const handleOffline = () => setOnline(false);
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
+  const reportProgress = useCallback(async (currentWarnings: number, currentAnswers: Record<string, string>) => {
+    if (!attemptId) return;
+    try {
+      await api.post('/progress', {
+        attempt_id: attemptId,
+        tab_switches: currentWarnings,
+        answers: currentAnswers,
+        snapshot: ""
+      });
+    } catch (err) { console.error("Auto-save failed", err); }
   }, [attemptId]);
 
-  // ---- actions ----
+  useEffect(() => {
+    if (status !== 'active') return;
+    const interval = setInterval(() => reportProgress(warnings, answers), SNAPSHOT_INTERVAL);
+    return () => clearInterval(interval);
+  }, [warnings, answers, status, reportProgress]);
 
-  const handleAnswerSelect = (questionId: string, option: string) => {
-    setAnswers((prev) => {
-      const newAnswers = { ...prev, [questionId]: option };
+  // --- 3. Proctoring ---
 
-      if (attemptId) {
-        api
-          .post('/progress', {
-            attempt_id: attemptId,
-            answers: newAnswers,
-            tab_switches: warnings,
-            snapshot: '',
-          })
-          .catch(() => { });
-      }
-      return newAnswers;
+  const handleViolation = useCallback((type: string) => {
+    if (status !== 'active') return;
+    setWarnings(prev => {
+      const newW = prev + 1;
+      reportProgress(newW, answers);
+      if (newW >= MAX_WARNINGS) submitAttempt(true, `Violation: ${type}`);
+      return newW;
     });
-  };
+  }, [status, answers, reportProgress]);
 
-  const performSystemCheck = async () => {
-    startExamSequence();
-  };
+  useProctoring({ isActive: status === 'active', onViolation: handleViolation });
 
-  const startExamSequence = async () => {
-    if (!online) {
-      alert('You are offline. Connect to the internet to start the exam.');
-      return;
-    }
+  useEffect(() => {
+    const fsHandler = () => {
+      const full = !!document.fullscreenElement;
+      setIsFullScreen(full);
+      if (!full && status === 'active') handleViolation('fullscreen_exit');
+    };
+    document.addEventListener('fullscreenchange', fsHandler);
+    return () => document.removeEventListener('fullscreenchange', fsHandler);
+  }, [status, handleViolation]);
 
-    try {
-      if (!cameraAccess) await startCamera();
+  // --- 4. Actions ---
 
-      const res = await api.post('/attempts/start', { exam_id: exam.id });
+  const handleOptionClick = (qId: string, opt: string) => {
+    if (status !== 'active') return;
 
-      // backend returns full attempt with time_left
-      const attempt = res.data;
-      if (!attempt || !attempt.id) {
-        throw new Error('Invalid server response');
-      }
+    const q = questions.find(q => q.id === qId);
+    if (!q) return;
 
-      setAttemptId(attempt.id);
-      setAnswers(attempt.answers || {});
-      setTimeLeft(typeof attempt.time_left === 'number'
-        ? attempt.time_left
-        : exam.duration_minutes * 60
-      );
+    let newVal = "";
 
-      await requestFullScreen();
-      setIsFullScreen(true);
-      setStatus('active');
-    } catch (err: any) {
-      const code = err?.response?.data?.error;
-      if (code === 'exam_not_started') {
-        const startTime = err.response.data.start_time;
-        alert(
-          'Exam has not started yet.\nStart time: ' +
-          new Date(startTime).toLocaleString()
-        );
-      } else if (code === 'exam_closed') {
-        alert('This exam is already closed.');
-        onCancel();
-      } else if (code === 'attempt_already_submitted') {
-        alert('You have already submitted this exam.');
-        onCancel();
+    if (q.type === 'multi-select') {
+      // Toggle Logic
+      const currentRaw = answers[qId] || "";
+      let currentOpts = currentRaw ? currentRaw.split(',') : [];
+
+      if (currentOpts.includes(opt)) {
+        // Remove
+        currentOpts = currentOpts.filter(o => o !== opt);
       } else {
-        alert('Could not start exam. Ensure camera & internet are allowed.');
+        // Add
+        currentOpts.push(opt);
       }
+      // Sort to ensure consistency (A,B not B,A)
+      newVal = currentOpts.sort().join(',');
+    } else {
+      // Single Choice Logic (Replace)
+      newVal = opt;
     }
+    // Update State
+    const newAnswers = { ...answers, [qId]: newVal };
+    setAnswers(newAnswers);
+
+    // Trigger Save
+    reportProgress(warnings, newAnswers);
   };
 
-  const finishExam = async () => {
+  // Helper to check if selected
+  const isSelected = (qId: string, opt: string, type: string) => {
+    const val = answers[qId];
+    if (!val) return false;
+    if (type === 'multi-select') {
+      return val.split(',').includes(opt);
+    }
+    return val === opt;
+  };
+
+  const toggleReview = (qId: string) => {
+    const newSet = new Set(markedForReview);
+    if (newSet.has(qId)) newSet.delete(qId);
+    else newSet.add(qId);
+    setMarkedForReview(newSet);
+  };
+
+  const submitAttempt = async (forced: boolean, reason?: string) => {
     if (status === 'submitting') return;
+    if (!forced && !window.confirm("Are you sure you want to finish the exam?")) return;
+
     setStatus('submitting');
-    stopCamera();
-
     try {
-      if (document.fullscreenElement) {
-        await document.exitFullscreen();
-      }
-    } catch {
-      // ignore
-    }
-
-    try {
-      if (attemptId) {
-        await api.post('/attempts/submit', { attempt_id: attemptId });
-      }
-      alert('Exam submitted.');
+      await api.post('/attempts/submit', { attempt_id: attemptId });
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => { });
       onComplete();
-    } catch {
-      alert('Error submitting exam. Some progress may still be saved.');
-      onComplete();
+    } catch (e) {
+      alert("Submission error. Please verify internet connection.");
+      setStatus('active');
     }
   };
 
-  const handleViolation = (type: string) => {
-    const newWarnings = warnings + 1;
-    setWarnings(newWarnings);
+  // --- Render Helpers ---
 
-    if (attemptId) {
-      api
-        .post('/progress', {
-          attempt_id: attemptId,
-          tab_switches: newWarnings,
-          answers,
-        })
-        .catch(console.error);
-    }
-
-    console.warn('Violation detected:', type);
-
-    if (newWarnings >= MAX_WARNINGS) {
-      alert('Maximum violations reached. Exam terminated.');
-      finishExam();
-    }
+  const formatTime = (s: number) => {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return `${h}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
   };
 
-  // camera helpers
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 320, height: 240 },
-      });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      setCameraAccess(true);
-    } catch {
-      throw new Error('Camera denied');
-    }
+  // Color logic for Question Palette
+  const getPaletteColor = (qId: string, idx: number) => {
+    if (idx === currentQIndex) return 'ring-2 ring-blue-600 border-blue-600 bg-blue-50'; // Current
+    if (markedForReview.has(qId)) return 'bg-purple-600 text-white border-purple-600'; // Review
+    if (answers[qId]) return 'bg-green-600 text-white border-green-600'; // Answered
+    return 'bg-white text-gray-700 hover:bg-gray-100'; // Not Visited
   };
 
-  const stopCamera = () => {
-    if (videoRef.current?.srcObject) {
-      (videoRef.current.srcObject as MediaStream)
-        .getTracks()
-        .forEach((t) => t.stop());
-    }
-  };
+  const currentQ = questions[currentQIndex];
 
-  const captureSnapshot = (): string => {
-    if (!videoRef.current) return '';
-    const canvas = document.createElement('canvas');
-    canvas.width = 320;
-    canvas.height = 240;
-    canvas.getContext('2d')?.drawImage(videoRef.current, 0, 0, 320, 240);
-    return canvas.toDataURL('image/jpeg', 0.5);
-  };
+  if (status === 'loading') return (
+    <div className="h-screen flex flex-col items-center justify-center bg-gray-50">
+      <Loader2 className="w-10 h-10 animate-spin text-blue-600 mb-4" />
+      <h2 className="text-xl font-semibold text-gray-700">Loading Exam Environment...</h2>
+    </div>
+  );
 
-  // --- render ---
+  return (
+    <div className="h-screen flex flex-col bg-gray-50 font-sans overflow-hidden">
 
-  if (status === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-10 h-10 animate-spin text-blue-600" />
-      </div>
-    );
-  }
-
-  // idle screen before start
-  if (status === 'idle') {
-    return (
-      <div
-        className="min-h-screen bg-gray-900 flex items-center justify-center p-4"
-        onContextMenu={(e) => e.preventDefault()}
-        onCopy={(e) => e.preventDefault()}
-        onCut={(e) => e.preventDefault()}
-        onPaste={(e) => e.preventDefault()}
-      >
-        <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-8 text-center">
-          <h1 className="text-2xl font-bold mb-2">{exam.title}</h1>
-
-          <p className="text-sm text-gray-600 mb-2">
-            Scheduled start:{' '}
-            {exam.start_time
-              ? new Date(exam.start_time as any).toLocaleString()
-              : 'Not set'}
-          </p>
-
-          <div className="relative bg-black rounded-lg overflow-hidden aspect-video mb-6">
-            <video
-              ref={videoRef}
-              autoPlay
-              muted
-              playsInline
-              className="w-full h-full object-cover"
-            />
-            {!cameraAccess && (
-              <div className="absolute inset-0 flex items-center justify-center text-white/50">
-                Camera Preview
-              </div>
-            )}
+      {/* --- HEADER --- */}
+      <header className="h-16 bg-slate-900 text-white flex items-center justify-between px-4 shadow-md z-20 shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="bg-slate-800 p-2 rounded">
+            <span className="font-bold text-sm text-slate-300 block leading-none text-xs">EXAM</span>
+            <span className="font-bold">{exam.title}</span>
           </div>
+        </div>
 
-          <div className="bg-gray-50 p-5 rounded-lg border border-gray-200 mb-6 text-left">
-            <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4" /> System Check
-            </h3>
-
-            <div className="bg-green-50 border border-green-200 rounded p-3 flex items-center gap-3">
-              <CheckCircle className="w-5 h-5 text-green-600" />
-              <div>
-                <p className="font-bold text-green-700 text-sm">System Secure</p>
-                <p className="text-xs text-green-700 mt-1">
-                  Copy, print, shortcuts & tab switch will be monitored during the
-                  exam.
-                </p>
-              </div>
-            </div>
+        <div className="flex items-center gap-6">
+          {/* Timer */}
+          <div className={`flex items-center gap-2 px-4 py-2 rounded font-mono text-lg font-bold border 
+                ${timeLeft < 300 ? 'bg-red-900/50 border-red-500 text-red-100' : 'bg-slate-800 border-slate-700'}`}>
+            <Clock className="w-5 h-5" /> {formatTime(timeLeft)}
           </div>
-
-          {online ? (
-            !cameraAccess ? (
-              <button
-                onClick={() => startCamera().catch(() => alert('Camera required'))}
-                className="w-full bg-gray-800 text-white py-3 rounded-lg font-bold"
-              >
-                Enable Camera
-              </button>
-            ) : (
-              <button
-                onClick={performSystemCheck}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold"
-              >
-                START EXAM
-              </button>
-            )
-          ) : (
-            <div className="bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm">
-              You are offline. Connect to the internet to start.
-            </div>
-          )}
 
           <button
-            onClick={onCancel}
-            className="mt-4 text-sm text-gray-500 hover:text-gray-700"
+            onClick={() => submitAttempt(false)}
+            className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded font-bold transition shadow-lg shadow-green-900/20"
           >
-            Cancel
+            Submit Exam
+          </button>
+
+          {/* Mobile Menu Toggle */}
+          <button className="md:hidden p-2" onClick={() => setShowSidebar(!showSidebar)}>
+            {showSidebar ? <X /> : <Menu />}
           </button>
         </div>
-      </div>
-    );
-  }
+      </header>
 
-  // active exam screen
-  return (
-    <div
-      className="min-h-screen bg-gray-50 select-none relative"
-      onContextMenu={(e) => e.preventDefault()}
-      onCopy={(e) => {
-        e.preventDefault();
-        handleViolation('copy');
-      }}
-      onCut={(e) => {
-        e.preventDefault();
-        handleViolation('cut');
-      }}
-      onPaste={(e) => {
-        e.preventDefault();
-        handleViolation('paste');
-      }}
-    >
-      <video
-        ref={videoRef}
-        autoPlay
-        muted
-        className="fixed opacity-0 pointer-events-none"
-      />
-
-      {!isFullScreen && (
-        <div className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center p-8 text-center">
-          <div className="bg-red-50 p-10 rounded-2xl border-4 border-red-500 shadow-2xl max-w-lg animate-pulse">
-            <AlertOctagon className="w-24 h-24 text-red-600 mx-auto mb-6" />
-            <h1 className="text-4xl font-black text-red-700 mb-4">EXAM PAUSED</h1>
-            <p className="text-xl text-gray-800 mb-8 font-medium">
-              You have exited Full Screen mode.
-            </p>
-
-            <button
-              onClick={() => {
-                requestFullScreen();
-                setIsFullScreen(true);
-              }}
-              className="bg-red-600 text-white text-xl px-8 py-4 rounded-xl font-bold hover:bg-red-700 shadow-lg w-full flex items-center justify-center gap-3"
-            >
-              <Maximize className="w-6 h-6" /> RETURN TO EXAM
-            </button>
+      {/* --- WARNING BANNER --- */}
+      {(!isFullScreen || warnings > 0) && (
+        <div className="bg-red-600 text-white px-4 py-2 text-sm font-bold flex justify-between items-center z-20">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4" />
+            <span>Warnings: {warnings}/{MAX_WARNINGS}</span>
+            {!isFullScreen && <span> | Please return to Fullscreen!</span>}
           </div>
+          {!isFullScreen && (
+            <button onClick={requestFullScreen} className="bg-white text-red-600 px-3 py-1 rounded text-xs uppercase hover:bg-gray-100">
+              Fix Now
+            </button>
+          )}
         </div>
       )}
 
-      <div className={!isFullScreen ? 'opacity-0 pointer-events-none' : ''}>
-        <div className="sticky top-0 bg-white border-b border-gray-200 shadow-sm z-50">
-          <div className="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
-            <div>
-              <h2 className="font-bold text-gray-900">{exam.title}</h2>
+      {/* --- MAIN LAYOUT --- */}
+      <div className="flex flex-1 overflow-hidden relative">
 
-              <div
-                className={`text-xs font-bold mt-1 flex items-center gap-2 ${warnings > 0 ? 'text-red-600' : 'text-green-600'
-                  }`}
-              >
-                {warnings > 0 && <AlertTriangle className="w-3 h-3" />}
-                <span>
-                  Violations: {warnings}/{MAX_WARNINGS}
-                </span>
-                {!faceDetected && (
-                  <span className="ml-3 text-red-600">
-                    (No face detected – stay in camera view)
-                  </span>
-                )}
-              </div>
-
-              {!online && (
-                <div className="text-xs text-orange-600 mt-1">
-                  Offline – changes will sync when connection returns.
-                </div>
-              )}
+        {/* --- LEFT: QUESTION AREA --- */}
+        <main className="flex-1 flex flex-col h-full overflow-hidden relative">
+          {!isFullScreen && (
+            <div className="absolute inset-0 z-50 bg-white/95 backdrop-blur flex flex-col items-center justify-center">
+              <AlertOctagon className="w-20 h-20 text-red-500 mb-4 animate-pulse" />
+              <h1 className="text-2xl font-bold text-gray-900">Exam Paused</h1>
+              <p className="text-gray-500 mb-6">Fullscreen mode is required to continue.</p>
+              <button onClick={requestFullScreen} className="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold">Resume</button>
             </div>
+          )}
 
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 font-mono text-xl font-bold text-blue-600">
-                <Clock className="w-5 h-5" />
-                {Math.floor(timeLeft / 60)}:
-                {(timeLeft % 60).toString().padStart(2, '0')}
-              </div>
-
-              <button
-                onClick={finishExam}
-                disabled={status === 'submitting'}
-                className="bg-blue-600 text-white px-5 py-2 rounded-lg font-semibold disabled:opacity-50"
-              >
-                Submit
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="max-w-4xl mx-auto px-4 py-8 pb-32 space-y-6">
-          {questions.map((q, index) => (
-            <div
-              key={q.id}
-              className="bg-white rounded-xl shadow-sm border border-gray-100 p-6"
-            >
-              <div className="flex gap-4">
-                <div className="flex-shrink-0 w-8 h-8 bg-gray-100 text-gray-600 rounded-full flex items-center justify-center font-bold text-sm">
-                  {index + 1}
-                </div>
-
-                <div className="flex-1">
-                  <p className="text-lg font-medium text-gray-900 mb-4">
-                    {q.question_text}
-                  </p>
-
-                  <div className="space-y-3">
-                    {['A', 'B', 'C', 'D'].map((option) => (
-                      <label
-                        key={option}
-                        className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${answers[q.id] === option
-                          ? 'border-blue-600 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                      >
-                        <input
-                          type="radio"
-                          name={q.id}
-                          value={option}
-                          checked={answers[q.id] === option}
-                          onChange={() => handleAnswerSelect(q.id, option)}
-                          className="w-4 h-4 text-blue-600"
-                        />
-                        <span className="text-gray-700">
-                          <span className="font-semibold mr-2">{option}.</span>
-                          {q[`option_${option.toLowerCase()}` as keyof Question] as string}
-                        </span>
-                      </label>
-                    ))}
+          {/* Question Container */}
+          <div className="flex-1 overflow-y-auto p-4 md:p-8">
+            <div className="max-w-4xl mx-auto">
+              {/* Question Header */}
+              <div className="flex justify-between items-start mb-6 pb-4 border-b border-gray-200">
+                <div>
+                  <span className="text-sm font-bold text-gray-400 uppercase tracking-wider">Question {currentQIndex + 1}</span>
+                  <div className="flex items-center gap-4 mt-1">
+                    <span className="text-sm font-semibold text-gray-600">Marks: <span className="text-green-600">+{currentQ.points}</span></span>
+                    {exam.enable_negative_marking && (
+                      <span className="text-sm font-semibold text-gray-600">Neg: <span className="text-red-500">-{currentQ.negative_points}</span></span>
+                    )}
                   </div>
                 </div>
+                <button
+                  onClick={() => toggleReview(currentQ.id)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition
+                            ${markedForReview.has(currentQ.id)
+                      ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                >
+                  <Flag className={`w-4 h-4 ${markedForReview.has(currentQ.id) ? 'fill-purple-700' : ''}`} />
+                  {markedForReview.has(currentQ.id) ? 'Marked' : 'Mark for Review'}
+                </button>
+              </div>
+
+              {/* Question Text */}
+              <div className="prose max-w-none mb-8">
+                <p className="text-xl text-gray-800 font-medium leading-relaxed">
+                  {currentQ.question_text}
+                </p>
+              </div>
+
+              {/* Options */}
+              <div className="grid gap-4">
+                {['A', 'B', 'C', 'D'].map((opt) => {
+                  const selected = isSelected(currentQ.id, opt, currentQ.type);
+                  return (
+                    <div
+                      key={opt}
+                      onClick={() => handleOptionClick(currentQ.id, opt)}
+                      className={`group flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all
+                                ${selected
+                          ? 'border-blue-600 bg-blue-50/50 ring-1 ring-blue-200'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                        }`}
+                    >
+                      {/* Checkbox vs Radio UI */}
+                      <div className={`w-8 h-8 flex items-center justify-center font-bold text-sm mr-4 transition-colors
+                                    ${currentQ.type === 'multi-select' ? 'rounded-md' : 'rounded-full'} 
+                                    ${selected ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500 group-hover:bg-gray-300'}
+                                `}>
+                        {selected ? <Check className="w-5 h-5" /> : opt}
+                      </div>
+
+                      <span className="text-gray-700 font-medium text-lg">
+                        {currentQ[`option_${opt.toLowerCase()}` as keyof Question] as string}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+
+          {/* Footer Control Bar */}
+          <div className="h-20 bg-white border-t px-8 flex items-center justify-between shrink-0">
+            <button
+              disabled={currentQIndex === 0}
+              onClick={() => setCurrentQIndex(i => i - 1)}
+              className="flex items-center gap-2 px-6 py-3 rounded-lg font-bold text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+            >
+              <ChevronLeft className="w-5 h-5" /> Previous
+            </button>
+
+            <button
+              onClick={() => {
+                // Clear selection logic if needed
+                const newAns = { ...answers };
+                delete newAns[currentQ.id];
+                setAnswers(newAns);
+              }}
+              className="text-sm text-gray-400 underline hover:text-red-500"
+            >
+              Clear Response
+            </button>
+
+            <button
+              disabled={currentQIndex === questions.length - 1}
+              onClick={() => setCurrentQIndex(i => i + 1)}
+              className="flex items-center gap-2 px-6 py-3 rounded-lg font-bold bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-600/20 disabled:opacity-50 disabled:bg-gray-400"
+            >
+              Save & Next <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        </main>
+
+        {/* --- RIGHT: PALETTE SIDEBAR --- */}
+        <aside className={`
+            fixed inset-y-0 right-0 w-80 bg-white border-l shadow-2xl transform transition-transform z-30 flex flex-col
+            ${showSidebar ? 'translate-x-0' : 'translate-x-full'} md:relative md:translate-x-0
+        `}>
+          {/* Legend */}
+          <div className="p-4 border-b bg-gray-50">
+            <h3 className="font-bold text-gray-700 mb-3">Question Palette</h3>
+            <div className="grid grid-cols-2 gap-2 text-xs font-medium text-gray-600">
+              <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-green-600" /> Answered</div>
+              <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-white border border-gray-400" /> Not Visited</div>
+              <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-purple-600" /> Marked for Review</div>
+              <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-blue-50 border border-blue-600" /> Current</div>
+            </div>
+          </div>
+
+          {/* Grid */}
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="grid grid-cols-5 gap-3">
+              {questions.map((q, idx) => (
+                <button
+                  key={q.id}
+                  onClick={() => {
+                    setCurrentQIndex(idx);
+                    if (window.innerWidth < 768) setShowSidebar(false);
+                  }}
+                  className={`
+                                h-10 w-10 rounded-lg text-sm font-bold border transition-all flex items-center justify-center relative
+                                ${getPaletteColor(q.id, idx)}
+                            `}
+                >
+                  {idx + 1}
+                  {/* Small mark indicator */}
+                  {markedForReview.has(q.id) && (
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-purple-600 rounded-full border border-white" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Summary Footer */}
+          <div className="p-4 border-t bg-gray-50 text-xs text-center text-gray-500">
+            Answered: <b>{Object.keys(answers).length}</b> / {questions.length}
+          </div>
+        </aside>
       </div>
     </div>
   );

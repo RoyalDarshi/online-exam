@@ -31,9 +31,14 @@ type Exam struct {
 	PassingScore    int       `json:"passing_score"`
 	IsActive        bool      `gorm:"default:true" json:"is_active"`
 
-	// NEW: scheduled start & end (for real exam window)
 	StartTime time.Time `json:"start_time"`
 	EndTime   time.Time `json:"end_time"`
+
+	// --- NEGATIVE MARKING FIELDS (FLATTENED) ---
+	EnableNegativeMarking bool    `json:"enable_negative_marking"`
+	NegativeMarkEasy      float64 `json:"negative_mark_easy"`
+	NegativeMarkMedium    float64 `json:"negative_mark_medium"`
+	NegativeMarkHard      float64 `json:"negative_mark_hard"`
 
 	CreatedByID uuid.UUID  `json:"created_by"`
 	CreatedAt   time.Time  `json:"created_at"`
@@ -50,14 +55,18 @@ func (e *Exam) BeforeCreate(tx *gorm.DB) (err error) {
 type Question struct {
 	ID            uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 	ExamID        uuid.UUID `json:"exam_id"`
+	Type          string    `json:"type"` // NEW: "single-choice" or "multi-select"
 	QuestionText  string    `json:"question_text"`
 	OptionA       string    `json:"option_a"`
 	OptionB       string    `json:"option_b"`
 	OptionC       string    `json:"option_c"`
 	OptionD       string    `json:"option_d"`
 	CorrectAnswer string    `json:"correct_answer"`
-	Points        int       `json:"points"`
-	OrderNumber   int       `json:"order_number"`
+
+	Points         int     `json:"points"`          // Score for correct answer
+	NegativePoints float64 `json:"negative_points"` // Deduction for wrong answer (NEW)
+
+	OrderNumber int `json:"order_number"`
 }
 
 func (q *Question) BeforeCreate(tx *gorm.DB) (err error) {
@@ -67,6 +76,7 @@ func (q *Question) BeforeCreate(tx *gorm.DB) (err error) {
 	return
 }
 
+// ... ExamAttempt and QuestionInput remain the same ...
 type ExamAttempt struct {
 	ID uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 
@@ -89,11 +99,9 @@ type ExamAttempt struct {
 	Answers     map[string]string `gorm:"serializer:json" json:"answers"`
 	Snapshots   []string          `gorm:"serializer:json" json:"snapshots"`
 
-	// NEW: computed on server, not stored in DB
 	TimeLeftSeconds int `gorm:"-" json:"time_left"`
 }
 
-// Used for updating questions during Edit Exam
 type QuestionInput struct {
 	QuestionText  string `json:"question_text"`
 	OptionA       string `json:"option_a"`

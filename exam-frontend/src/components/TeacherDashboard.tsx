@@ -12,17 +12,17 @@ import { useAuth } from "../contexts/AuthContext";
 import * as XLSX from "xlsx";
 
 type TeacherQuestion = {
-    ID: string;
-    Subject: string;
-    Topic: string;
-    Complexity: string;
-    Type: string;
-    QuestionText: string;
-    Option1?: string;
-    Option2?: string;
-    Option3?: string;
-    Option4?: string;
-    Correct?: string;
+    id: string;
+    subject: string;
+    topic: string;
+    complexity: string;
+    type: string;
+    questionText: string;
+    option1?: string;
+    option2?: string;
+    option3?: string;
+    option4?: string;
+    correct?: string;
 };
 
 type PreviewRow = {
@@ -249,7 +249,7 @@ export function TeacherDashboard() {
 
         try {
             await api.delete(`/teacher/question-bank/${id}`);
-            setQuestions((prev) => prev.filter((q) => q.ID !== id));
+            setQuestions((prev) => prev.filter((q) => q.id !== id));
         } catch (err) {
             console.error(err);
             alert("Failed to delete");
@@ -265,17 +265,17 @@ export function TeacherDashboard() {
         if (!editData) return;
 
         try {
-            await api.put(`/teacher/question-bank/${editData.ID}`, {
-                Subject: editData.Subject,
-                Topic: editData.Topic,
-                Complexity: editData.Complexity,
-                Type: editData.Type,
-                QuestionText: editData.QuestionText,
-                Option1: editData.Option1,
-                Option2: editData.Option2,
-                Option3: editData.Option3,
-                Option4: editData.Option4,
-                Correct: editData.Correct,
+            await api.put(`/teacher/question-bank/${editData.id}`, {
+                subject: editData.subject,
+                topic: editData.topic,
+                complexity: editData.complexity,
+                type: editData.type,
+                questionText: editData.questionText,
+                option1: editData.option1,
+                option2: editData.option2,
+                option3: editData.option3,
+                option4: editData.option4,
+                correct: editData.correct,
             });
 
             alert("Updated successfully");
@@ -289,21 +289,21 @@ export function TeacherDashboard() {
 
     // ---------------- FILTERS & ANALYTICS ----------------
 
-    const subjects = Array.from(new Set(questions.map((q) => q.Subject)));
+    const subjects = Array.from(new Set(questions.map((q) => q.subject)));
     const topics = Array.from(
         new Set(
             questions
-                .filter((q) => (subjectFilter ? q.Subject === subjectFilter : true))
-                .map((q) => q.Topic)
+                .filter((q) => (subjectFilter ? q.subject === subjectFilter : true))
+                .map((q) => q.topic)
         )
     );
 
     const filteredQuestions = questions.filter((q) => {
-        if (subjectFilter && q.Subject !== subjectFilter) return false;
-        if (topicFilter && q.Topic !== topicFilter) return false;
+        if (subjectFilter && q.subject !== subjectFilter) return false;
+        if (topicFilter && q.topic !== topicFilter) return false;
         if (
             search &&
-            !q.QuestionText.toLowerCase().includes(search.toLowerCase())
+            !q.questionText.toLowerCase().includes(search.toLowerCase())
         )
             return false;
         return true;
@@ -313,7 +313,7 @@ export function TeacherDashboard() {
     const analyticsSummary = questions.reduce(
         (acc, q) => {
             acc.total++;
-            const c = q.Complexity.toLowerCase();
+            const c = q.complexity.toLowerCase();
             if (c === "easy") acc.easy++;
             else if (c === "medium") acc.medium++;
             else if (c === "hard") acc.hard++;
@@ -332,7 +332,7 @@ export function TeacherDashboard() {
 
     const bySubjectMap = new Map<string, SubjectAgg>();
     questions.forEach((q) => {
-        const key = q.Subject || "Unknown";
+        const key = q.subject || "Unknown";
         if (!bySubjectMap.has(key)) {
             bySubjectMap.set(key, {
                 subject: key,
@@ -344,7 +344,7 @@ export function TeacherDashboard() {
         }
         const agg = bySubjectMap.get(key)!;
         agg.total++;
-        const c = q.Complexity.toLowerCase();
+        const c = q.complexity.toLowerCase();
         if (c === "easy") agg.easy++;
         else if (c === "medium") agg.medium++;
         else if (c === "hard") agg.hard++;
@@ -362,11 +362,11 @@ export function TeacherDashboard() {
 
     const byTopicMap = new Map<string, TopicAgg>();
     questions.forEach((q) => {
-        const key = `${q.Subject}::${q.Topic || "Uncategorized"}`;
+        const key = `${q.subject}::${q.topic || "Uncategorized"}`;
         if (!byTopicMap.has(key)) {
             byTopicMap.set(key, {
-                subject: q.Subject || "Unknown",
-                topic: q.Topic || "Uncategorized",
+                subject: q.subject || "Unknown",
+                topic: q.topic || "Uncategorized",
                 total: 0,
                 easy: 0,
                 medium: 0,
@@ -375,7 +375,7 @@ export function TeacherDashboard() {
         }
         const agg = byTopicMap.get(key)!;
         agg.total++;
-        const c = q.Complexity.toLowerCase();
+        const c = q.complexity.toLowerCase();
         if (c === "easy") agg.easy++;
         else if (c === "medium") agg.medium++;
         else if (c === "hard") agg.hard++;
@@ -602,15 +602,15 @@ export function TeacherDashboard() {
                                     </thead>
                                     <tbody>
                                         {filteredQuestions.map((q) => (
-                                            <tr key={q.ID} className="border-t hover:bg-gray-50">
-                                                <td className="p-2 border">{q.Subject}</td>
-                                                <td className="p-2 border">{q.Topic}</td>
+                                            <tr key={q.id} className="border-t hover:bg-gray-50">
+                                                <td className="p-2 border">{q.subject}</td>
+                                                <td className="p-2 border">{q.topic}</td>
                                                 <td className="p-2 border capitalize">
-                                                    {q.Complexity}
+                                                    {q.complexity}
                                                 </td>
-                                                <td className="p-2 border capitalize">{q.Type}</td>
+                                                <td className="p-2 border capitalize">{q.type}</td>
                                                 <td className="p-2 border max-w-[400px]">
-                                                    <span className="line-clamp-2">{q.QuestionText}</span>
+                                                    <span className="line-clamp-2">{q.questionText}</span>
                                                 </td>
                                                 <td className="p-2 border text-center">
                                                     <button
@@ -621,7 +621,7 @@ export function TeacherDashboard() {
                                                     </button>
                                                     <button
                                                         className="text-red-600 hover:text-red-800"
-                                                        onClick={() => deleteQuestion(q.ID)}
+                                                        onClick={() => deleteQuestion(q.id)}
                                                     >
                                                         <Trash2 className="inline w-4 h-4" />
                                                     </button>
@@ -782,29 +782,29 @@ export function TeacherDashboard() {
                         <div className="space-y-3 text-sm">
                             <input
                                 className="border p-2 rounded w-full"
-                                value={editData.Subject}
+                                value={editData.subject}
                                 onChange={(e) =>
-                                    setEditData({ ...editData, Subject: e.target.value })
+                                    setEditData({ ...editData, subject: e.target.value })
                                 }
                                 placeholder="Subject"
                             />
 
                             <input
                                 className="border p-2 rounded w-full"
-                                value={editData.Topic}
+                                value={editData.topic}
                                 onChange={(e) =>
-                                    setEditData({ ...editData, Topic: e.target.value })
+                                    setEditData({ ...editData, topic: e.target.value })
                                 }
                                 placeholder="Topic"
                             />
 
                             <select
                                 className="border p-2 rounded w-full"
-                                value={editData.Complexity}
+                                value={editData.complexity}
                                 onChange={(e) =>
                                     setEditData({
                                         ...editData,
-                                        Complexity: e.target.value,
+                                        complexity: e.target.value,
                                     })
                                 }
                             >
@@ -815,9 +815,9 @@ export function TeacherDashboard() {
 
                             <select
                                 className="border p-2 rounded w-full"
-                                value={editData.Type}
+                                value={editData.type}
                                 onChange={(e) =>
-                                    setEditData({ ...editData, Type: e.target.value })
+                                    setEditData({ ...editData, type: e.target.value })
                                 }
                             >
                                 <option value="single-choice">Single Choice</option>
@@ -829,57 +829,57 @@ export function TeacherDashboard() {
 
                             <textarea
                                 className="border p-2 rounded w-full"
-                                value={editData.QuestionText}
+                                value={editData.questionText}
                                 onChange={(e) =>
-                                    setEditData({ ...editData, QuestionText: e.target.value })
+                                    setEditData({ ...editData, questionText: e.target.value })
                                 }
                                 placeholder="Question Text"
                                 rows={4}
                             />
 
-                            {editData.Type !== "descriptive" && (
+                            {editData.type !== "descriptive" && (
                                 <>
                                     <input
                                         className="border p-2 rounded w-full"
                                         placeholder="Option 1"
-                                        value={editData.Option1}
+                                        value={editData.option1}
                                         onChange={(e) =>
                                             setEditData({
                                                 ...editData,
-                                                Option1: e.target.value,
+                                                option1: e.target.value,
                                             })
                                         }
                                     />
                                     <input
                                         className="border p-2 rounded w-full"
                                         placeholder="Option 2"
-                                        value={editData.Option2}
+                                        value={editData.option2}
                                         onChange={(e) =>
                                             setEditData({
                                                 ...editData,
-                                                Option2: e.target.value,
+                                                option2: e.target.value,
                                             })
                                         }
                                     />
                                     <input
                                         className="border p-2 rounded w-full"
                                         placeholder="Option 3"
-                                        value={editData.Option3}
+                                        value={editData.option3}
                                         onChange={(e) =>
                                             setEditData({
                                                 ...editData,
-                                                Option3: e.target.value,
+                                                option3: e.target.value,
                                             })
                                         }
                                     />
                                     <input
                                         className="border p-2 rounded w-full"
                                         placeholder="Option 4"
-                                        value={editData.Option4}
+                                        value={editData.option4}
                                         onChange={(e) =>
                                             setEditData({
                                                 ...editData,
-                                                Option4: e.target.value,
+                                                option4: e.target.value,
                                             })
                                         }
                                     />
@@ -889,9 +889,9 @@ export function TeacherDashboard() {
                             <input
                                 className="border p-2 rounded w-full"
                                 placeholder="Correct Answer (or comma separated)"
-                                value={editData.Correct}
+                                value={editData.correct}
                                 onChange={(e) =>
-                                    setEditData({ ...editData, Correct: e.target.value })
+                                    setEditData({ ...editData, correct: e.target.value })
                                 }
                             />
                         </div>

@@ -4,7 +4,9 @@ import (
 	"exam-backend/database"
 	"exam-backend/models"
 	"net/http"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -50,19 +52,19 @@ func CreateExam(c *gin.Context) {
 		return
 	}
 
-	uidVal, exists := c.Get("user_id")
+	uidVal, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found in context"})
 		return
 	}
 	userIDStr, ok := uidVal.(string)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user_id type"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid userID type"})
 		return
 	}
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user_id"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid userID"})
 		return
 	}
 	exam.CreatedByID = userID
@@ -227,19 +229,19 @@ func StartAttempt(c *gin.Context) {
 		return
 	}
 
-	uidVal, exists := c.Get("user_id")
+	uidVal, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found in context"})
 		return
 	}
 	userIDStr, ok := uidVal.(string)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user_id type"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid userID type"})
 		return
 	}
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user_id"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid userID"})
 		return
 	}
 
@@ -330,10 +332,21 @@ func UpdateProgress(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
 
+// Helper to sort "A,C,B" -> "A,B,C" for comparison
+func sortAnswer(ans string) string {
+	parts := strings.Split(ans, ",")
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, ",")
+}
+
 // Submit attempt – server-side final time validation & scoring
 func SubmitAttempt(c *gin.Context) {
 	var input struct {
-		AttemptID string `json:"attempt_id"`
+		AttemptID string            `json:"attempt_id"`
+		Answers   map[string]string `json:"answers"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -349,6 +362,15 @@ func SubmitAttempt(c *gin.Context) {
 	if attempt.SubmittedAt != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "Already submitted"})
 		return
+	}
+
+	if input.Answers != nil {
+		attempt.Answers = input.Answers
+		// Save them immediately so scoring logic uses the latest data
+		if err := database.DB.Save(&attempt).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save final answers"})
+			return
+		}
 	}
 
 	var exam models.Exam
@@ -369,21 +391,48 @@ func SubmitAttempt(c *gin.Context) {
 	// Score calculation
 	var questions []models.Question
 	if err := database.DB.Where("exam_id = ?", attempt.ExamID).
-		Order("order_number asc").
 		Find(&questions).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load questions"})
 		return
 	}
 
-	score := 0
+	score := 0.0 // Use float for calculation
 	totalPoints := 0
+
 	for _, q := range questions {
 		totalPoints += q.Points
-		if userAnswer, ok := attempt.Answers[q.ID.String()]; ok && userAnswer == q.CorrectAnswer {
-			score += q.Points
+
+		userAnswer, answered := attempt.Answers[q.ID.String()]
+
+		if answered && userAnswer != "" {
+			isCorrect := false
+
+			if q.Type == "multi-select" {
+				// Strict Matching: Sort both and compare string equality
+				// DB Correct: "A,C" | User: "C,A" -> Both become "A,C"
+				if sortAnswer(userAnswer) == sortAnswer(q.CorrectAnswer) {
+					isCorrect = true
+				}
+			} else {
+				// Single Choice
+				if userAnswer == q.CorrectAnswer {
+					isCorrect = true
+				}
+			}
+
+			if isCorrect {
+				score += float64(q.Points)
+			} else {
+				score -= q.NegativePoints
+			}
 		}
 	}
-	attempt.Score = score
+
+	if score < 0 {
+		score = 0
+	}
+
+	attempt.Score = int(score) // Store as integer (rounded down) or update DB schema to float
 	attempt.TotalPoints = totalPoints
 
 	if totalPoints > 0 {
@@ -469,6 +518,30 @@ func GetExamAttempts(c *gin.Context) {
 		"total":      total,
 		"totalPages": (total + int64(limit) - 1) / int64(limit),
 	})
+}
+
+func GetStudentAttempts(c *gin.Context) {
+	// 1. Get logged-in user ID
+	uidVal, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	userIDStr, _ := uidVal.(string)
+	userID, _ := uuid.Parse(userIDStr)
+
+	// 2. Query attempts
+	var attempts []models.ExamAttempt
+	if err := database.DB.
+		Preload("Exam"). // Load Exam title/details
+		Where("student_id = ?", userID).
+		Order("started_at desc").
+		Find(&attempts).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load attempts"})
+		return
+	}
+
+	c.JSON(http.StatusOK, attempts)
 }
 
 // Admin: Update exam + overwrite questions

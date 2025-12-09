@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type SubjectSummary struct {
@@ -221,6 +222,14 @@ type CreateExamFromBankRequest struct {
 		Medium int `json:"medium"`
 		Hard   int `json:"hard"`
 	} `json:"points_config"`
+
+	// Receive nested JSON from frontend
+	EnableNegativeMarking bool `json:"enable_negative_marking"`
+	NegativeConfig        struct {
+		Easy   float64 `json:"easy"`
+		Medium float64 `json:"medium"`
+		Hard   float64 `json:"hard"`
+	} `json:"negative_config"`
 }
 
 func CreateExamFromBank(c *gin.Context) {
@@ -237,7 +246,7 @@ func CreateExamFromBank(c *gin.Context) {
 		query = query.Where("topic IN ?", req.Topics)
 	}
 	if err := query.Find(&bank).Error; err != nil || len(bank) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No questions available for this selection"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No questions available"})
 		return
 	}
 
@@ -254,96 +263,220 @@ func CreateExamFromBank(c *gin.Context) {
 		}
 	}
 
-	// 3. Calculate requirements
+	// 3. Validation
 	total := req.TotalQuestions
 	needEasy := total * req.Difficulty.Easy / 100
 	needMedium := total * req.Difficulty.Medium / 100
-	needHard := total - needEasy - needMedium // Remainder goes to Hard to ensure sum matches total
+	needHard := total - needEasy - needMedium
 
-	// 4. Validate counts
 	if len(easyQs) < needEasy || len(medQs) < needMedium || len(hardQs) < needHard {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Not enough questions in the bank for this difficulty distribution"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Not enough questions for this distribution"})
 		return
 	}
 
-	// 5. Randomize (Shuffle)
+	// 4. Shuffle
 	rand.Seed(time.Now().UnixNano())
 	shuffle := func(qs []models.QuestionBank) {
-		rand.Shuffle(len(qs), func(i, j int) {
-			qs[i], qs[j] = qs[j], qs[i]
-		})
+		rand.Shuffle(len(qs), func(i, j int) { qs[i], qs[j] = qs[j], qs[i] })
 	}
 	shuffle(easyQs)
 	shuffle(medQs)
 	shuffle(hardQs)
 
-	// 6. Create Exam Record
-	uidVal, _ := c.Get("userID") // Use "userID" to match middleware key
+	// 5. Create Exam (Map nested JSON to Flat DB Columns)
+	uidVal, _ := c.Get("userID")
 	adminIDStr, _ := uidVal.(string)
 	adminID, _ := uuid.Parse(adminIDStr)
 
-	// Defaults for points if not provided
-	if req.PointsConfig.Easy == 0 {
-		req.PointsConfig.Easy = 1
-	}
-	if req.PointsConfig.Medium == 0 {
-		req.PointsConfig.Medium = 2
-	}
-	if req.PointsConfig.Hard == 0 {
-		req.PointsConfig.Hard = 3
+	exam := models.Exam{
+		Title:                 req.Title,
+		Description:           req.Description,
+		DurationMinutes:       req.DurationMinutes,
+		PassingScore:          req.PassingScore,
+		CreatedByID:           adminID,
+		StartTime:             req.StartTime.In(istLocation),
+		EnableNegativeMarking: req.EnableNegativeMarking,
+		// Map Flat Fields
+		NegativeMarkEasy:   req.NegativeConfig.Easy,
+		NegativeMarkMedium: req.NegativeConfig.Medium,
+		NegativeMarkHard:   req.NegativeConfig.Hard,
 	}
 
-	exam := models.Exam{
-		Title:           req.Title,
-		Description:     req.Description,
-		DurationMinutes: req.DurationMinutes,
-		PassingScore:    req.PassingScore,
-		CreatedByID:     adminID,
-		StartTime:       req.StartTime.In(istLocation),
-	}
 	if exam.DurationMinutes > 0 {
 		exam.EndTime = exam.StartTime.Add(time.Duration(exam.DurationMinutes) * time.Minute)
 	}
 
 	if err := database.DB.Create(&exam).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create exam record"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create exam"})
 		return
 	}
 
-	// 7. Insert Questions into Exam
+	// 6. Insert Questions (Assign specific NegativePoints)
 	questionsToInsert := []models.Question{}
 
-	addQs := func(source []models.QuestionBank, count int, points int) {
+	addQs := func(source []models.QuestionBank, count int, points int, negPoints float64) {
 		for i := 0; i < count; i++ {
 			qb := source[i]
+
+			finalNeg := 0.0
+			if req.EnableNegativeMarking {
+				finalNeg = negPoints
+			}
+
 			questionsToInsert = append(questionsToInsert, models.Question{
-				ExamID:        exam.ID,
-				QuestionText:  qb.QuestionText,
-				OptionA:       qb.Option1,
-				OptionB:       qb.Option2,
-				OptionC:       qb.Option3,
-				OptionD:       qb.Option4,
-				CorrectAnswer: qb.Correct,
-				Points:        points,
-				OrderNumber:   0, // Will assign index later if needed, or let DB handle it
+				ExamID:         exam.ID,
+				QuestionText:   qb.QuestionText,
+				OptionA:        qb.Option1,
+				OptionB:        qb.Option2,
+				OptionC:        qb.Option3,
+				OptionD:        qb.Option4,
+				CorrectAnswer:  qb.Correct,
+				Points:         points,
+				NegativePoints: finalNeg, // Store specific penalty
+				OrderNumber:    0,
 			})
 		}
 	}
 
-	addQs(easyQs, needEasy, req.PointsConfig.Easy)
-	addQs(medQs, needMedium, req.PointsConfig.Medium)
-	addQs(hardQs, needHard, req.PointsConfig.Hard)
+	// Use config values for points and negative marks
+	addQs(easyQs, needEasy, req.PointsConfig.Easy, req.NegativeConfig.Easy)
+	addQs(medQs, needMedium, req.PointsConfig.Medium, req.NegativeConfig.Medium)
+	addQs(hardQs, needHard, req.PointsConfig.Hard, req.NegativeConfig.Hard)
 
-	// Batch insert for performance
-	// Note: You might want to assign OrderNumber i here
 	for i := range questionsToInsert {
 		questionsToInsert[i].OrderNumber = i + 1
 		database.DB.Create(&questionsToInsert[i])
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message":         "Exam generated successfully",
-		"exam_id":         exam.ID,
-		"total_questions": len(questionsToInsert),
+	c.JSON(http.StatusOK, gin.H{"message": "Exam generated", "exam_id": exam.ID})
+}
+
+// PUT /api/admin/exams/:id/regenerate
+func RegenerateExam(c *gin.Context) {
+	id := c.Param("id")
+	var req CreateExamFromBankRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 1. Find Existing Exam
+	var exam models.Exam
+	if err := database.DB.First(&exam, "id = ?", id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Exam not found"})
+		return
+	}
+
+	// 2. Validate Bank Availability (Same logic as Create)
+	var bank []models.QuestionBank
+	query := database.DB.Where("subject = ?", req.Subject)
+	if len(req.Topics) > 0 {
+		query = query.Where("topic IN ?", req.Topics)
+	}
+	if err := query.Find(&bank).Error; err != nil || len(bank) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No questions available for this subject"})
+		return
+	}
+
+	var easyQs, medQs, hardQs []models.QuestionBank
+	for _, q := range bank {
+		switch strings.ToLower(q.Complexity) {
+		case "easy":
+			easyQs = append(easyQs, q)
+		case "medium":
+			medQs = append(medQs, q)
+		case "hard":
+			hardQs = append(hardQs, q)
+		}
+	}
+
+	total := req.TotalQuestions
+	needEasy := total * req.Difficulty.Easy / 100
+	needMedium := total * req.Difficulty.Medium / 100
+	needHard := total - needEasy - needMedium
+
+	if len(easyQs) < needEasy || len(medQs) < needMedium || len(hardQs) < needHard {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Not enough questions in bank for this distribution"})
+		return
+	}
+
+	// 3. Shuffle
+	rand.Seed(time.Now().UnixNano())
+	shuffle := func(qs []models.QuestionBank) {
+		rand.Shuffle(len(qs), func(i, j int) { qs[i], qs[j] = qs[j], qs[i] })
+	}
+	shuffle(easyQs)
+	shuffle(medQs)
+	shuffle(hardQs)
+
+	// 4. Update Exam Metadata
+	exam.Title = req.Title
+	exam.Description = req.Description
+	exam.DurationMinutes = req.DurationMinutes
+	exam.PassingScore = req.PassingScore
+	exam.StartTime = req.StartTime.In(istLocation)
+	if exam.DurationMinutes > 0 {
+		exam.EndTime = exam.StartTime.Add(time.Duration(exam.DurationMinutes) * time.Minute)
+	}
+
+	// Update Negative Marking Config
+	exam.EnableNegativeMarking = req.EnableNegativeMarking
+	exam.NegativeMarkEasy = req.NegativeConfig.Easy
+	exam.NegativeMarkMedium = req.NegativeConfig.Medium
+	exam.NegativeMarkHard = req.NegativeConfig.Hard
+
+	// 5. Transaction: Save Exam + Replace Questions
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(&exam).Error; err != nil {
+			return err
+		}
+
+		// DELETE OLD QUESTIONS
+		if err := tx.Where("exam_id = ?", exam.ID).Delete(&models.Question{}).Error; err != nil {
+			return err
+		}
+
+		// INSERT NEW QUESTIONS
+		questionsToInsert := []models.Question{}
+		addQs := func(source []models.QuestionBank, count int, points int, negPoints float64) {
+			for i := 0; i < count; i++ {
+				qb := source[i]
+				finalNeg := 0.0
+				if req.EnableNegativeMarking {
+					finalNeg = negPoints
+				}
+				questionsToInsert = append(questionsToInsert, models.Question{
+					ExamID:         exam.ID,
+					QuestionText:   qb.QuestionText,
+					OptionA:        qb.Option1,
+					OptionB:        qb.Option2,
+					OptionC:        qb.Option3,
+					OptionD:        qb.Option4,
+					CorrectAnswer:  qb.Correct,
+					Points:         points,
+					NegativePoints: finalNeg,
+					OrderNumber:    0,
+				})
+			}
+		}
+
+		addQs(easyQs, needEasy, req.PointsConfig.Easy, req.NegativeConfig.Easy)
+		addQs(medQs, needMedium, req.PointsConfig.Medium, req.NegativeConfig.Medium)
+		addQs(hardQs, needHard, req.PointsConfig.Hard, req.NegativeConfig.Hard)
+
+		for i := range questionsToInsert {
+			questionsToInsert[i].OrderNumber = i + 1
+			if err := tx.Create(&questionsToInsert[i]).Error; err != nil {
+				return err
+			}
+		}
+		return nil
 	})
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update exam"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Exam updated and regenerated successfully"})
 }
