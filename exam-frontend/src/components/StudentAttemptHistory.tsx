@@ -1,6 +1,6 @@
 // src/components/StudentAttemptHistory.tsx
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import api from "../lib/api";
 import { ExamAttempt } from "../types/models";
 import { ChevronLeft, Eye } from "lucide-react";

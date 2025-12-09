@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../lib/api';
 import { useProctoring, requestFullScreen } from '../hooks/useProctoring';
 import { Exam, Question } from '../types/models';

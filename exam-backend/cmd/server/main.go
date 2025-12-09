@@ -32,7 +32,7 @@ func main() {
 	r := gin.Default()
 
 	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"http://localhost:5173"}
+	config.AllowOrigins = []string{"http://192.168.1.9:5173", "http://localhost:5173"}
 	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization"}
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
 	r.Use(cors.New(config))
@@ -94,7 +94,7 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
-	if err := r.Run(":" + port); err != nil {
+	if err := r.Run("0.0.0.0:" + port); err != nil {
 		log.Fatal(err)
 	}
 }

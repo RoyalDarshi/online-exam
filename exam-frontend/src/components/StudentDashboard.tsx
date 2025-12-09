@@ -1,6 +1,6 @@
 // src/components/StudentDashboard.tsx
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Clock, FileText, CheckCircle, PlayCircle, History, List } from 'lucide-react';

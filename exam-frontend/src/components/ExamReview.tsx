@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Check, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { Question, ExamAttempt, Exam } from "../types/models";
 

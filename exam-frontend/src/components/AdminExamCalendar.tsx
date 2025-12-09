@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Exam } from '../lib/supabase';
 import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 

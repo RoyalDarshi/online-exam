@@ -1,3 +1,4 @@
+import React from 'react';
 import { useAuth, AuthProvider } from './contexts/AuthContext';
 import { Auth } from './components/Auth';
 import { AdminDashboard } from './components/AdminDashboard';

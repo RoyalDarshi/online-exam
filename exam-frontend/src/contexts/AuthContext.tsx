@@ -1,5 +1,7 @@
 // src/contexts/AuthContext.tsx
+import React from 'react';
 import { createContext, useContext, useEffect, useState } from 'react';
+import { BASE_URL } from '../config';
 import axios from 'axios';
 
 // Define types (You can move these to a separate types file later)
@@ -37,7 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function signIn(email: string, password: string) {
     // Call Go Backend
-    const response = await axios.post('http://localhost:8080/api/auth/login', {
+    const response = await axios.post(`${BASE_URL}/auth/login`, {
       email,
       password
     });
@@ -52,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function signUp(email: string, password: string, fullName: string, role: 'admin' | 'student' | 'teacher') {
     // Call Go Backend
-    await axios.post('http://localhost:8080/api/auth/register', {
+    await axios.post(`${BASE_URL}/auth/register`, {
       email,
       password,
       full_name: fullName,
