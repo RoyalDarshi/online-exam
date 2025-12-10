@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../lib/api';
 import { useProctoring, requestFullScreen } from '../hooks/useProctoring';
 import { Exam, Question } from '../types/models';
+import ReviewAndSubmitModal from './ReviewAndSubmitModal';
 import {
   Clock,
   Loader2,
@@ -57,6 +58,7 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
   const [paletteFilter, setPaletteFilter] = useState<'all' | 'unanswered' | 'marked'>('all');
 
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
+  const [showSubmitModal, setShowSubmitModal] = useState(false);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const answersRef = useRef(answers);
   const warningsRef = useRef(warnings);
@@ -213,12 +215,20 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
 
   const submitAttempt = async (forced: boolean, reason?: string) => {
     if (status === 'submitting') return;
-    if (!forced && !window.confirm("Are you sure you want to finish the exam?")) return;
+
+    if (!forced) {
+      // Show the modal instead of the browser confirm dialog
+      setShowSubmitModal(true);
+      return;
+    }
+
+    // Logic for confirmed submission (either from modal or forced by system/timer)
+    setShowSubmitModal(false); // Close the modal if open
     setStatus('submitting');
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     await saveToBackend(answers);
     try {
-      await api.post('/attempts/submit', { attempt_id: attemptId });
+      await api.post('/attempts/submit', { attempt_id: attemptId, reason }); // Pass reason for termination log
       if (document.fullscreenElement) document.exitFullscreen().catch(() => { });
       onComplete();
     } catch (e) {
@@ -248,6 +258,12 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
       case 'xl': return 'text-2xl';
       default: return 'text-lg';
     }
+  };
+
+  const handleQuestionJump = (index: number) => {
+    setCurrentQIndex(index);
+    // You might also want to ensure the sidebar is closed for better focus
+    if (window.innerWidth < 1024) setShowSidebar(false);
   };
 
   // --- Visual Helpers ---
@@ -608,6 +624,19 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
             </p>
           </div>
         </aside>
+        <ReviewAndSubmitModal
+          isOpen={showSubmitModal}
+          onClose={() => setShowSubmitModal(false)}
+          onSubmit={() => submitAttempt(true)} // Force submission when confirmed
+          questions={questions}
+          answers={answers}
+          markedForReview={markedForReview}
+          visited={visited}
+          timeLeft={timeLeft}
+          warnings={warnings}
+          MAX_WARNINGS={MAX_WARNINGS}
+          onQuestionJump={handleQuestionJump}
+        />
 
       </div>
     </div>
