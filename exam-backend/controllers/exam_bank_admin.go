@@ -335,6 +335,7 @@ func CreateExamFromBank(c *gin.Context) {
 				Points:         points,
 				NegativePoints: finalNeg, // Store specific penalty
 				OrderNumber:    0,
+				Complexity:     qb.Complexity,
 			})
 		}
 	}
@@ -458,6 +459,7 @@ func RegenerateExam(c *gin.Context) {
 					Points:         points,
 					NegativePoints: finalNeg,
 					OrderNumber:    0,
+					Complexity:     qb.Complexity,
 				})
 			}
 		}

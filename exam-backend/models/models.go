@@ -65,6 +65,7 @@ type Question struct {
 
 	Points         int     `json:"points"`          // Score for correct answer
 	NegativePoints float64 `json:"negative_points"` // Deduction for wrong answer (NEW)
+	Complexity     string  `json:"complexity"`      // "easy","medium","hard"
 
 	OrderNumber int `json:"order_number"`
 }
@@ -105,6 +106,7 @@ type ExamAttempt struct {
 type QuestionInput struct {
 	QuestionText  string `json:"question_text"`
 	Type          string `json:"type"`
+	Complexity    string `json:"complexity"`
 	OptionA       string `json:"option_a"`
 	OptionB       string `json:"option_b"`
 	OptionC       string `json:"option_c"`

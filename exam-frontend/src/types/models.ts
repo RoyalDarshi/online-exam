@@ -3,7 +3,8 @@
 export type Question = {
     id: string;
     exam_id: string;
-    type: 'single-choice' | 'multi-select'; // NEW
+    type: 'single-choice' | 'multi-select' | 'true-false' | 'descriptive'; // NEW
+    complexity: 'easy' | 'medium' | 'hard'; // NEW
     question_text: string;
     option_a: string;
     option_b: string;
