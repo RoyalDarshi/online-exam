@@ -697,14 +697,14 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
                     </div>
                     <div className="flex flex-wrap items-center gap-2 text-[11px]">
                       <span
-                        className={`px-2 py-0.5 rounded-full font-semibold border ${currentQ.complexity === 'Hard'
+                        className={`px-2 py-0.5 rounded-full font-semibold border ${currentQ.complexity === 'hard'
                           ? 'bg-rose-950/50 text-rose-200 border-rose-700'
-                          : currentQ.complexity === 'Medium'
+                          : currentQ.complexity === 'medium'
                             ? 'bg-amber-950/40 text-amber-200 border-amber-700'
                             : 'bg-emerald-950/40 text-emerald-200 border-emerald-700'
                           }`}
                       >
-                        {currentQ.complexity || 'Easy'}
+                        {currentQ.complexity || 'easy'}
                       </span>
                       <span
                         className={`px-2 py-0.5 rounded-full font-semibold border flex items-center gap-1 ${currentQ.type === 'multi-select'
@@ -945,7 +945,7 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
 
         {/* SIDEBAR: QUESTION PALETTE */}
         <aside
-          className={`fixed inset-y-[72px] md:inset-y-[78px] right-0 w-72 bg-slate-950 border-l border-slate-800 transform transition-transform duration-300 z-30 flex flex-col
+          className={`fixed inset-y-0 right-0 w-72 bg-slate-950 border-l border-slate-800 transform transition-transform duration-300 z-30 flex flex-col
             ${showSidebar ? 'translate-x-0' : 'translate-x-full'}
             lg:relative lg:translate-x-0`}
         >
