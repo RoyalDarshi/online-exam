@@ -1,7 +1,14 @@
+// src/components/ExamResults.tsx
 import React, { useState, useEffect } from "react";
 import api from "../lib/api";
-import { ArrowLeft, CheckCircle, XCircle, AlertTriangle, Eye, Loader2 } from "lucide-react";
-import { AdminAttemptReview } from "./AdminAttemptReview";
+import {
+  ArrowLeft,
+  Loader2,
+} from "lucide-react";
+import ExamReview from "./ExamReview";
+import { ResultsHeader } from "./admin/results/ResultsHeader";
+import { AttemptTable } from "./admin/results/AttemptTable";
+import { ResultsPagination } from "./admin/results/ResultsPagination";
 
 type Props = {
   examId: string;
@@ -14,7 +21,7 @@ type Student = {
   email: string;
 };
 
-type Attempt = {
+export type Attempt = {
   id: string;
   score: number;
   total_points: number;
@@ -32,8 +39,10 @@ export function ExamResults({ examId, onBack }: Props) {
   const [loading, setLoading] = useState(true);
 
   const [reviewAttemptId, setReviewAttemptId] = useState<string | null>(null);
+  const [reviewAttempt, setReviewAttempt] = useState<any | null>(null);
 
-  // Pagination (backend supports it)
+
+  // Pagination
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -54,7 +63,9 @@ export function ExamResults({ examId, onBack }: Props) {
   async function loadAttempts(pageNum: number) {
     try {
       setLoading(true);
-      const res = await api.get(`/admin/exams/${examId}/attempts?page=${pageNum}&limit=50`);
+      const res = await api.get(
+        `/admin/exams/${examId}/attempts?page=${pageNum}&limit=50`
+      );
 
       setAttempts(res.data.data || []);
       setPage(res.data.page);
@@ -66,171 +77,100 @@ export function ExamResults({ examId, onBack }: Props) {
     }
   }
 
-  if (reviewAttemptId) {
+  async function loadFullAttemptForReview(attempt: Attempt) {
+    try {
+      const res = await api.get(`/admin/attempts/${attempt.id}`);
+      // This endpoint must return: { exam, answers, ...attempt fields }
+      setReviewAttempt(res.data);
+    } catch (err) {
+      console.error("Failed to load attempt details:", err);
+    }
+  }
+
+
+  if (reviewAttempt) {
     return (
-      <AdminAttemptReview
-        attemptId={reviewAttemptId}
-        onBack={() => setReviewAttemptId(null)}
+      <ExamReview
+        attempt={reviewAttempt}   // FULL OBJECT
+        onBack={() => setReviewAttempt(null)}
+        mode="admin"              // important!
       />
     );
   }
 
+
   if (!exam) {
     return (
-      <div className="p-12 text-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto" />
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-sky-400" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-950 text-slate-50">
       {/* HEADER */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            Back
-          </button>
-
-          <h1 className="text-2xl font-bold text-gray-900">{exam.title} — Results</h1>
-        </div>
-      </header>
+      <ResultsHeader
+        examTitle={exam.title}
+        onBack={onBack}
+      />
 
       {/* BODY */}
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        {/* ATTEMPT TABLE */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Student Attempts</h2>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
+        {/* Meta strip */}
+        <div className="flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm text-slate-400">
+          <div className="flex flex-wrap gap-3">
+            <span>
+              Attempts:{" "}
+              <span className="font-semibold text-slate-100">
+                {attempts.length}
+              </span>
+            </span>
+            {exam.passing_score != null && (
+              <span>
+                Passing %:{" "}
+                <span className="font-semibold text-emerald-300">
+                  {exam.passing_score}%
+                </span>
+              </span>
+            )}
+          </div>
+          <button
+            onClick={onBack}
+            className="inline-flex items-center gap-2 text-slate-400 hover:text-slate-100 text-xs font-medium"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Exam List
+          </button>
+        </div>
+
+        {/* TABLE CARD */}
+        <section className="bg-slate-900/70 border border-slate-800 rounded-xl shadow-lg shadow-slate-900/40 overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm sm:text-base font-semibold text-slate-100">
+                Student Attempts
+              </h2>
+              <p className="text-xs text-slate-400 mt-1">
+                Review performance, violations, and status per candidate.
+              </p>
+            </div>
           </div>
 
-          {loading ? (
-            <div className="py-12 flex justify-center">
-              <Loader2 className="w-10 h-10 animate-spin text-blue-600" />
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
-                      Student
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
-                      Score
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
-                      Violations
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-
-                <tbody className="divide-y divide-gray-200">
-                  {attempts.map((attempt) => {
-                    const percent = attempt.total_points
-                      ? Math.round((attempt.score / attempt.total_points) * 100)
-                      : 0;
-
-                    return (
-                      <tr key={attempt.id} className="hover:bg-gray-50">
-                        {/* STUDENT */}
-                        <td className="px-6 py-4">
-                          <div className="font-medium text-gray-900">
-                            {attempt.student?.full_name || "Unknown"}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {attempt.student?.email}
-                          </div>
-                        </td>
-
-                        {/* SCORE */}
-                        <td className="px-6 py-4 text-sm text-gray-800">
-                          {attempt.score}/{attempt.total_points}{" "}
-                          <span className="text-gray-500 text-xs">({percent}%)</span>
-                        </td>
-
-                        {/* VIOLATIONS */}
-                        <td className="px-6 py-4 text-sm">
-                          {attempt.tab_switches > 0 ? (
-                            <span className="text-red-600 font-bold flex items-center gap-1">
-                              <AlertTriangle className="w-4 h-4" /> {attempt.tab_switches}
-                            </span>
-                          ) : (
-                            <span className="text-green-600">Clean</span>
-                          )}
-                        </td>
-
-                        {/* STATUS */}
-                        <td className="px-6 py-4">
-                          {attempt.is_terminated ? (
-                            <span className="text-red-600 font-bold flex items-center gap-1">
-                              <XCircle className="w-4 h-4" /> Terminated
-                            </span>
-                          ) : attempt.passed ? (
-                            <span className="text-green-600 font-bold flex items-center gap-1">
-                              <CheckCircle className="w-4 h-4" /> Passed
-                            </span>
-                          ) : (
-                            <span className="text-red-600 font-bold flex items-center gap-1">
-                              <XCircle className="w-4 h-4" /> Failed
-                            </span>
-                          )}
-                        </td>
-
-                        {/* ACTIONS */}
-                        <td className="px-6 py-4">
-                          <button
-                            onClick={() => setReviewAttemptId(attempt.id)}
-                            className="flex items-center gap-2 bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition"
-                          >
-                            <Eye className="w-4 h-4" />
-                            Review Answer Sheet
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+          <AttemptTable
+            attempts={attempts}
+            loading={loading}
+            onReviewClick={loadFullAttemptForReview}
+          />
+        </section>
 
         {/* PAGINATION */}
         {totalPages > 1 && (
-          <div className="flex justify-center mt-6 gap-3">
-            <button
-              disabled={page === 1}
-              onClick={() => loadAttempts(page - 1)}
-              className={`px-3 py-2 border rounded ${page === 1 ? "opacity-40" : "hover:bg-gray-100"
-                }`}
-            >
-              Previous
-            </button>
-
-            <div className="px-4 py-2 font-medium">
-              Page {page} / {totalPages}
-            </div>
-
-            <button
-              disabled={page === totalPages}
-              onClick={() => loadAttempts(page + 1)}
-              className={`px-3 py-2 border rounded ${page === totalPages ? "opacity-40" : "hover:bg-gray-100"
-                }`}
-            >
-              Next
-            </button>
-          </div>
+          <ResultsPagination
+            page={page}
+            totalPages={totalPages}
+            onChange={(newPage) => loadAttempts(newPage)}
+          />
         )}
       </main>
     </div>
