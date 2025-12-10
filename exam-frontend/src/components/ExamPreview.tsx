@@ -1,212 +1,240 @@
-// ExamPreview.tsx — TCS iON Modern Navy Theme
 import React, { useEffect, useState } from "react";
-import { Exam } from "../lib/supabase";
 import {
     ArrowLeft,
+    BookOpen,
     Clock,
-    CalendarDays,
-    CheckCircle,
-    AlertTriangle,
     PlayCircle,
+    Info,
+    AlertTriangle,
 } from "lucide-react";
 
-type Props = {
+import StudentNavbar from "./student/StudentNavbar";
+import { useAuth } from "../contexts/AuthContext";
+import { Exam } from "../types/models";
+
+interface Props {
     exam: Exam;
     onBack: () => void;
     onStart: () => void;
-};
+}
 
 export function ExamPreview({ exam, onBack, onStart }: Props) {
-    const [now, setNow] = useState(Date.now());
+    const { user, signOut } = useAuth();
 
+    const [timeLeft, setTimeLeft] = useState<string>("");
+    const [hasAcknowledged, setHasAcknowledged] = useState(false);
+
+    const now = Date.now();
+    const start = new Date(exam.start_time).getTime();
+    const end = new Date(exam.end_time).getTime();
+
+    const isUpcoming = now < start;
+    const isClosed = now > end;
+    const isActive = now >= start && now <= end;
+
+    // Countdown only when upcoming
     useEffect(() => {
-        const id = setInterval(() => setNow(Date.now()), 1000);
-        return () => clearInterval(id);
-    }, []);
+        if (!isUpcoming) return;
 
-    const startTime = exam.start_time
-        ? new Date(exam.start_time).getTime()
-        : null;
-    const hasStart = !!startTime;
-    const diffMs = hasStart ? startTime! - now : 0;
+        const interval = setInterval(() => {
+            const diff = start - Date.now();
 
-    const canStart = !hasStart || diffMs <= 0;
+            if (diff <= 0) {
+                setTimeLeft("Starting now…");
+                clearInterval(interval);
+                return;
+            }
 
-    const totalSec = Math.max(0, Math.floor(diffMs / 1000));
-    const h = Math.floor(totalSec / 3600);
-    const m = Math.floor((totalSec % 3600) / 60);
-    const s = totalSec % 60;
+            const h = Math.floor(diff / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            const s = Math.floor((diff % 60000) / 1000);
 
-    const formattedStart = exam.start_time
-        ? new Date(exam.start_time).toLocaleString("en-IN", {
-            dateStyle: "medium",
-            timeStyle: "short",
-        })
-        : "Not scheduled";
+            setTimeLeft(
+                `${h.toString().padStart(2, "0")}h : ${m
+                    .toString()
+                    .padStart(2, "0")}m : ${s.toString().padStart(2, "0")}s`
+            );
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [exam.start_time]);
+
+    const fmt = (s?: string) =>
+        s ? new Date(s).toLocaleString() : "Not specified";
+
+    const negativeEnabled = !!exam.enable_negative_marking;
 
     return (
-        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-            <div className="w-full max-w-3xl rounded-xl border border-slate-800 bg-slate-900 shadow-xl overflow-hidden">
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+            <StudentNavbar user={user} onLogout={signOut} onHistory={() => { }} />
 
-                {/* HEADER */}
-                <div className="border-b border-slate-800 px-5 py-4 flex items-center justify-between bg-slate-900">
-                    <button
-                        onClick={onBack}
-                        className="flex items-center gap-2 text-slate-300 hover:text-slate-100 text-sm"
-                    >
-                        <ArrowLeft className="w-4 h-4" />
-                        Back
-                    </button>
+            <main className="max-w-5xl mx-auto px-5 py-8">
+                {/* Back */}
+                <button
+                    onClick={onBack}
+                    className="
+            mb-6 inline-flex items-center gap-2 text-sm font-medium rounded-lg px-4 py-2 border
+            bg-white text-slate-700 border-slate-300 hover:bg-slate-100
+            dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700 dark:hover:bg-slate-800
+          "
+                >
+                    <ArrowLeft className="w-4 h-4" />
+                    Back
+                </button>
 
-                    <span className="text-[11px] font-semibold px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-sky-300">
-                        ONLINE ASSESSMENT
-                    </span>
-                </div>
-
-                {/* BODY */}
-                <div className="p-6 space-y-6">
-
-                    {/* TITLE */}
-                    <div>
-                        <h1 className="text-2xl font-bold text-slate-100">
-                            {exam.title}
-                        </h1>
-                        <p className="text-slate-400 text-sm mt-1">
-                            {exam.description}
+                {/* CLOSED STATE (same as before) */}
+                {isClosed && (
+                    <section className="
+            p-8 rounded-2xl border shadow-sm text-center
+            bg-white border-slate-200
+            dark:bg-slate-900 dark:border-slate-800">
+                        <AlertTriangle className="w-12 h-12 mx-auto text-red-500 mb-4" />
+                        <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">
+                            Exam Window Closed
+                        </h2>
+                        <p className="text-slate-600 dark:text-slate-400 text-sm mb-4">
+                            You cannot start this exam.
                         </p>
-                    </div>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">
+                            Start Time: {fmt(exam.start_time)}
+                        </p>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">
+                            End Time: {fmt(exam.end_time)}
+                        </p>
+                    </section>
+                )}
 
-                    {/* INFO CARDS */}
-                    <div className="grid sm:grid-cols-3 gap-4 text-sm">
-                        {/* Duration */}
-                        <div className="bg-slate-900/60 border border-slate-800 rounded-lg p-3 flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-sky-900/40 border border-sky-700 flex items-center justify-center">
-                                <Clock className="w-4 h-4 text-sky-300" />
-                            </div>
-                            <div>
-                                <p className="text-slate-500 text-[11px] uppercase font-semibold">
-                                    Duration
-                                </p>
-                                <p className="font-semibold text-slate-200">
-                                    {exam.duration_minutes} mins
-                                </p>
-                            </div>
-                        </div>
+                {/* ACTIVE + UPCOMING → SAME PREVIEW */}
+                {!isClosed && (
+                    <section className="
+            p-6 md:p-7 rounded-2xl border shadow-sm
+            bg-white border-slate-200
+            dark:bg-slate-900 dark:border-slate-800">
 
-                        {/* Passing Score */}
-                        <div className="bg-slate-900/60 border border-slate-800 rounded-lg p-3 flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-emerald-900/40 border border-emerald-700 flex items-center justify-center">
-                                <CheckCircle className="w-4 h-4 text-emerald-300" />
-                            </div>
-                            <div>
-                                <p className="text-slate-500 text-[11px] uppercase font-semibold">
-                                    Passing Score
-                                </p>
-                                <p className="font-semibold text-slate-200">
-                                    {exam.passing_score}%
-                                </p>
-                            </div>
-                        </div>
+                        {/* Header */}
+                        <header className="mb-6 border-b border-slate-200 dark:border-slate-700 pb-3">
+                            <h1 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                                <BookOpen className="w-6 h-6 text-sky-600 dark:text-sky-300" />
+                                {exam.title}
+                            </h1>
+                        </header>
 
-                        {/* Start Time */}
-                        <div className="bg-slate-900/60 border border-slate-800 rounded-lg p-3 flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-indigo-900/40 border border-indigo-700 flex items-center justify-center">
-                                <CalendarDays className="w-4 h-4 text-indigo-300" />
-                            </div>
-                            <div>
-                                <p className="text-slate-500 text-[11px] uppercase font-semibold">
-                                    Start Time
+                        {/* UPCOMING COUNTDOWN (TCS style) */}
+                        {isUpcoming && (
+                            <div className="
+                mb-6 p-4 rounded-xl border text-center
+                bg-slate-50 border-slate-200
+                dark:bg-slate-800/50 dark:border-slate-700">
+                                <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 tracking-wide uppercase">
+                                    Exam starts in
                                 </p>
-                                <p className="font-semibold text-slate-200 text-xs sm:text-sm">
-                                    {formattedStart}
+                                <p className="text-xl font-bold text-sky-600 dark:text-sky-300">
+                                    {timeLeft}
                                 </p>
                             </div>
-                        </div>
-                    </div>
+                        )}
 
-                    {/* COUNTDOWN */}
-                    {hasStart && (
-                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-
-                            <div className="flex items-start gap-3">
-                                <AlertTriangle className="w-5 h-5 text-amber-300 mt-1" />
+                        {/* Candidate details */}
+                        <div className="
+                mb-6 p-4 rounded-xl border
+                bg-slate-50 border-slate-200
+                dark:bg-slate-950/50 dark:border-slate-700">
+                            <div className="grid sm:grid-cols-2 gap-4 text-sm">
                                 <div>
-                                    <p className="text-sm font-semibold text-slate-100">
-                                        {canStart ? "Exam window is open" : "Exam will start soon"}
-                                    </p>
-                                    <p className="text-xs text-slate-400 mt-1">
-                                        Please ensure a stable connection. Timer is server-validated.
-                                    </p>
+                                    <span className="block text-xs text-slate-500 dark:text-slate-400">Candidate Name</span>
+                                    <span className="font-medium text-slate-800 dark:text-slate-100">{user?.full_name}</span>
+                                </div>
+                                <div>
+                                    <span className="block text-xs text-slate-500 dark:text-slate-400">Candidate ID</span>
+                                    <span className="font-medium text-slate-800 dark:text-slate-100">{user?.id}</span>
+                                </div>
+                                <div>
+                                    <span className="block text-xs text-slate-500 dark:text-slate-400">Duration</span>
+                                    <span className="font-medium text-slate-800 dark:text-slate-100">{exam.duration_minutes} minutes</span>
+                                </div>
+                                <div>
+                                    <span className="block text-xs text-slate-500 dark:text-slate-400">Passing Score</span>
+                                    <span className="font-medium text-slate-800 dark:text-slate-100">{exam.passing_score}%</span>
                                 </div>
                             </div>
-
-                            <div className="flex flex-col items-center min-w-[140px]">
-                                {!canStart && (
-                                    <>
-                                        <p className="text-[10px] uppercase text-slate-500 font-semibold">
-                                            Starts in
-                                        </p>
-                                        <div className="mt-1 flex gap-1 text-base font-mono">
-                                            {[h, m, s].map((v, idx) => (
-                                                <React.Fragment key={idx}>
-                                                    <span className="px-2 py-1 rounded-md bg-slate-950 border border-slate-700 text-slate-100">
-                                                        {String(v).padStart(2, "0")}
-                                                    </span>
-                                                    {idx < 2 && (
-                                                        <span className="px-0.5 text-slate-500">:</span>
-                                                    )}
-                                                </React.Fragment>
-                                            ))}
-                                        </div>
-                                    </>
-                                )}
-
-                                {canStart && (
-                                    <span className="text-xs font-medium text-emerald-300 bg-emerald-900/40 px-3 py-1 rounded-full mt-1">
-                                        You can start now
-                                    </span>
-                                )}
-                            </div>
                         </div>
-                    )}
 
-                    {/* RULES */}
-                    <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 text-xs text-slate-400 space-y-1">
-                        <p className="font-semibold text-slate-100 mb-1">
-                            Before you start:
-                        </p>
-                        <ul className="list-disc list-inside space-y-1">
-                            <li>Keep your camera on; activity may be monitored.</li>
-                            <li>Do not switch tabs or windows during the exam.</li>
-                            <li>Internet must remain stable; time continues on server.</li>
-                            <li>You cannot modify answers after submitting.</li>
-                        </ul>
-                    </div>
+                        {/* Marking Scheme */}
+                        <div className="
+                mb-6 p-4 rounded-xl border
+                bg-white border-slate-200
+                dark:bg-slate-950/50 dark:border-slate-700">
+                            <h2 className="text-sm font-bold mb-3 text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                                <Info className="w-4 h-4 text-sky-600 dark:text-sky-300" />
+                                Marking Scheme
+                            </h2>
 
-                    {/* ACTIONS */}
-                    <div className="flex justify-between items-center pt-1">
-                        <button
-                            onClick={onBack}
-                            className="text-sm text-slate-400 hover:text-slate-200"
-                        >
-                            Go Back
-                        </button>
+                            {negativeEnabled ? (
+                                <div className="text-sm text-slate-700 dark:text-slate-300 space-y-1">
+                                    <p>• Correct Answer: <b>+1</b></p>
+                                    <p>• Wrong (Easy): -{exam.negative_mark_easy}</p>
+                                    <p>• Wrong (Medium): -{exam.negative_mark_medium}</p>
+                                    <p>• Wrong (Hard): -{exam.negative_mark_hard}</p>
+                                    <p>• Unattempted: 0</p>
+                                </div>
+                            ) : (
+                                <p className="text-sm text-slate-600 dark:text-slate-400">Negative marking is disabled.</p>
+                            )}
+                        </div>
 
-                        <button
-                            disabled={!canStart}
-                            onClick={onStart}
-                            className={`inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-semibold transition
-                ${canStart
-                                    ? "bg-sky-600 hover:bg-sky-500 text-white shadow-lg shadow-sky-500/20"
-                                    : "bg-slate-800 text-slate-500 cursor-not-allowed"
-                                }`}
-                        >
-                            <PlayCircle className="w-5 h-5" />
-                            {canStart ? "Start Exam" : "Wait"}
-                        </button>
-                    </div>
-                </div>
-            </div>
+                        {/* Instructions */}
+                        <div className="
+                mb-6 p-4 rounded-xl border
+                bg-white border-slate-200
+                dark:bg-slate-950/50 dark:border-slate-700">
+                            <h2 className="text-sm font-bold mb-3 text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                                <AlertTriangle className="w-4 h-4 text-amber-500" />
+                                General Instructions
+                            </h2>
+
+                            <ol className="list-decimal ml-5 space-y-1.5 text-sm text-slate-700 dark:text-slate-300">
+                                <li>Do not refresh or close the browser once exam starts.</li>
+                                <li>Tab switching may be treated as a violation.</li>
+                                <li>Timer will not stop once the test begins.</li>
+                                <li>Read questions carefully before answering.</li>
+                                <li>You can change answers before final submission.</li>
+                                <li>If any issue occurs, contact the invigilator.</li>
+                            </ol>
+                        </div>
+
+                        {/* Declaration + Start */}
+                        <div className="
+                mt-4 pt-4 border-t border-slate-200 dark:border-slate-700
+                flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                            <label className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    className="mt-1 accent-sky-600"
+                                    checked={hasAcknowledged}
+                                    onChange={(e) => setHasAcknowledged(e.target.checked)}
+                                />
+                                <span>
+                                    I have read and understood the instructions.
+                                </span>
+                            </label>
+
+                            <button
+                                disabled={!isActive || !hasAcknowledged}
+                                onClick={onStart}
+                                className={`
+                  inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold
+                  shadow bg-sky-600 text-white hover:bg-sky-500
+                  dark:bg-sky-600 dark:hover:bg-sky-500
+                  disabled:opacity-60 disabled:cursor-not-allowed
+                `}
+                            >
+                                <PlayCircle className="w-5 h-5" />
+                                Start Test
+                            </button>
+                        </div>
+                    </section>
+                )}
+            </main>
         </div>
     );
 }
