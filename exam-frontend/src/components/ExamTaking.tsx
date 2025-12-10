@@ -18,13 +18,12 @@ import {
   WifiOff,
   ListFilter,
   CheckCircle2,
-  XCircle,
   Keyboard,
   MousePointerClick,
   Maximize2,
   Type,
   Filter,
-  Circle // Import Circle for radio effect
+  Circle
 } from 'lucide-react';
 
 type Props = {
@@ -63,8 +62,12 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
   const answersRef = useRef(answers);
   const warningsRef = useRef(warnings);
 
-  useEffect(() => { answersRef.current = answers; }, [answers]);
-  useEffect(() => { warningsRef.current = warnings; }, [warnings]);
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
+  useEffect(() => {
+    warningsRef.current = warnings;
+  }, [warnings]);
 
   useEffect(() => {
     if (window.innerWidth < 1024) setShowSidebar(false);
@@ -98,19 +101,25 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
         }
 
         if (!document.fullscreenElement) {
-          try { await requestFullScreen(); } catch (e) { /* user denied */ }
+          try {
+            await requestFullScreen();
+          } catch (e) {
+            /* user denied */
+          }
         }
 
         setStatus('active');
       } catch (err: any) {
         if (isMounted) {
-          setErrorMessage(err.response?.data?.error || "Failed to load exam.");
+          setErrorMessage(err.response?.data?.error || 'Failed to load exam.');
           setStatus('error');
         }
       }
     }
     initExam();
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+    };
   }, [exam.id, onComplete]);
 
   // --- 2. Track Visitation ---
@@ -145,21 +154,24 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
   }, [timeLeft, status, questions.length]);
 
   // --- 4. Save & Proctoring ---
-  const saveToBackend = useCallback(async (currentAnswers: Record<string, string>) => {
-    if (!attemptId) return;
-    setSaveStatus('saving');
-    try {
-      await api.post('/progress', {
-        attempt_id: attemptId,
-        tab_switches: warningsRef.current,
-        answers: currentAnswers,
-        snapshot: ""
-      });
-      setSaveStatus('saved');
-    } catch (err) {
-      setSaveStatus('error');
-    }
-  }, [attemptId]);
+  const saveToBackend = useCallback(
+    async (currentAnswers: Record<string, string>) => {
+      if (!attemptId) return;
+      setSaveStatus('saving');
+      try {
+        await api.post('/progress', {
+          attempt_id: attemptId,
+          tab_switches: warningsRef.current,
+          answers: currentAnswers,
+          snapshot: ''
+        });
+        setSaveStatus('saved');
+      } catch (err) {
+        setSaveStatus('error');
+      }
+    },
+    [attemptId]
+  );
 
   useEffect(() => {
     if (status !== 'active') return;
@@ -167,15 +179,18 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
     return () => clearInterval(interval);
   }, [status, saveToBackend]);
 
-  const handleViolation = useCallback((type: string) => {
-    if (status !== 'active') return;
-    setWarnings(prev => {
-      const newW = prev + 1;
-      saveToBackend(answersRef.current);
-      if (newW >= MAX_WARNINGS) submitAttempt(true, `Violation: ${type}`);
-      return newW;
-    });
-  }, [status, saveToBackend]);
+  const handleViolation = useCallback(
+    (type: string) => {
+      if (status !== 'active') return;
+      setWarnings(prev => {
+        const newW = prev + 1;
+        saveToBackend(answersRef.current);
+        if (newW >= MAX_WARNINGS) submitAttempt(true, `Violation: ${type}`);
+        return newW;
+      });
+    },
+    [status, saveToBackend]
+  );
 
   useProctoring({ isActive: status === 'active', onViolation: handleViolation });
 
@@ -195,9 +210,9 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
     const q = questions.find(q => q.id === qId);
     if (!q) return;
 
-    let newVal = "";
+    let newVal = '';
     if (q.type === 'multi-select') {
-      const currentRaw = answers[qId] || "";
+      const currentRaw = answers[qId] || '';
       let currentOpts = currentRaw ? currentRaw.split(',') : [];
       if (currentOpts.includes(opt)) currentOpts = currentOpts.filter(o => o !== opt);
       else currentOpts.push(opt);
@@ -217,22 +232,20 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
     if (status === 'submitting') return;
 
     if (!forced) {
-      // Show the modal instead of the browser confirm dialog
       setShowSubmitModal(true);
       return;
     }
 
-    // Logic for confirmed submission (either from modal or forced by system/timer)
-    setShowSubmitModal(false); // Close the modal if open
+    setShowSubmitModal(false);
     setStatus('submitting');
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     await saveToBackend(answers);
     try {
-      await api.post('/attempts/submit', { attempt_id: attemptId, reason }); // Pass reason for termination log
+      await api.post('/attempts/submit', { attempt_id: attemptId, reason });
       if (document.fullscreenElement) document.exitFullscreen().catch(() => { });
       onComplete();
     } catch (e) {
-      setErrorMessage("Submission failed. Please check connection.");
+      setErrorMessage('Submission failed. Please check connection.');
       setStatus('active');
     }
   };
@@ -253,169 +266,272 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
 
   const getTextClass = () => {
     switch (textSize) {
-      case 'sm': return 'text-sm';
-      case 'lg': return 'text-xl';
-      case 'xl': return 'text-2xl';
-      default: return 'text-lg';
+      case 'sm':
+        return 'text-sm';
+      case 'lg':
+        return 'text-lg';
+      case 'xl':
+        return 'text-xl';
+      default:
+        return 'text-base';
     }
   };
 
   const handleQuestionJump = (index: number) => {
     setCurrentQIndex(index);
-    // You might also want to ensure the sidebar is closed for better focus
     if (window.innerWidth < 1024) setShowSidebar(false);
   };
 
   // --- Visual Helpers ---
   const getTypeColor = (type: string) => {
-    if (type === 'single-choice') return { ring: 'ring-blue-600', border: 'border-blue-600', bg: 'bg-blue-600', light: 'bg-blue-50/50', text: 'text-blue-600' };
-    if (type === 'multi-select') return { ring: 'ring-purple-600', border: 'border-purple-600', bg: 'bg-purple-600', light: 'bg-purple-50/50', text: 'text-purple-600' };
-    return { ring: 'ring-slate-600', border: 'border-slate-600', bg: 'bg-slate-600', light: 'bg-slate-50', text: 'text-slate-600' };
+    if (type === 'single-choice')
+      return {
+        ring: 'ring-sky-500',
+        border: 'border-sky-500',
+        bg: 'bg-sky-500',
+        light: 'bg-sky-900/40',
+        text: 'text-sky-400'
+      };
+    if (type === 'multi-select')
+      return {
+        ring: 'ring-violet-500',
+        border: 'border-violet-500',
+        bg: 'bg-violet-500',
+        light: 'bg-violet-900/40',
+        text: 'text-violet-400'
+      };
+    return {
+      ring: 'ring-slate-500',
+      border: 'border-slate-500',
+      bg: 'bg-slate-500',
+      light: 'bg-slate-900/40',
+      text: 'text-slate-300'
+    };
   };
 
-  if (status === 'loading') return (
-    <div className="h-screen flex flex-col items-center justify-center bg-gray-50">
-      <Loader2 className="w-10 h-10 animate-spin text-blue-600 mb-4" />
-      <h2 className="text-xl font-semibold text-gray-700">Loading Exam Environment...</h2>
-    </div>
-  );
+  if (status === 'loading')
+    return (
+      <div className="h-screen flex flex-col items-center justify-center bg-slate-950">
+        <Loader2 className="w-10 h-10 animate-spin text-sky-400 mb-4" />
+        <h2 className="text-xl font-semibold text-slate-100">Preparing your exam environment...</h2>
+        <p className="text-xs text-slate-500 mt-2">Please do not refresh or close this window.</p>
+      </div>
+    );
 
-  if (status === 'error') return (
-    <div className="h-screen flex flex-col items-center justify-center bg-gray-50">
-      <AlertOctagon className="w-12 h-12 text-rose-600 mb-4" />
-      <h2 className="text-xl font-bold text-gray-900 mb-2">Error Loading Exam</h2>
-      <p className="text-gray-600 mb-6">{errorMessage}</p>
-      <button onClick={onCancel} className="px-6 py-2 bg-gray-800 text-white rounded-lg">Go Back</button>
-    </div>
-  );
+  if (status === 'error')
+    return (
+      <div className="h-screen flex flex-col items-center justify-center bg-slate-950">
+        <AlertOctagon className="w-12 h-12 text-rose-500 mb-4" />
+        <h2 className="text-xl font-bold text-slate-100 mb-2">Error Loading Exam</h2>
+        <p className="text-slate-400 mb-6">{errorMessage}</p>
+        <button
+          onClick={onCancel}
+          className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-slate-50 rounded-lg border border-slate-600"
+        >
+          Go Back
+        </button>
+      </div>
+    );
 
   const currentQ = questions[currentQIndex];
   if (!currentQ) return null;
 
-  const filteredQuestions = questions.map((q, idx) => ({ ...q, originalIdx: idx })).filter(q => {
-    if (paletteFilter === 'unanswered') return !answers[q.id];
-    if (paletteFilter === 'marked') return markedForReview.has(q.id);
-    return true;
-  });
+  const filteredQuestions = questions
+    .map((q, idx) => ({ ...q, originalIdx: idx }))
+    .filter(q => {
+      if (paletteFilter === 'unanswered') return !answers[q.id];
+      if (paletteFilter === 'marked') return markedForReview.has(q.id);
+      return true;
+    });
 
-  const progressPercent = ((Object.keys(answers).length) / questions.length) * 100;
+  const progressPercent = (Object.keys(answers).length / questions.length) * 100;
   const typeColors = getTypeColor(currentQ.type);
 
   return (
-    <div className="h-screen flex flex-col bg-[#F3F4F6] font-sans text-slate-900 overflow-hidden">
-
-      {/* 1. HEADER */}
-      <header className="h-16 bg-white/90 backdrop-blur-md border-b border-gray-200 flex items-center justify-between px-4 lg:px-6 shadow-sm z-30 shrink-0 relative">
-        <div className="flex items-center gap-4">
-          <div className="bg-slate-900 p-2 rounded-lg shadow-md flex items-center justify-center">
-            <span className="font-bold text-white leading-none tracking-widest text-xs">EXAM</span>
+    <div className="h-screen flex flex-col bg-slate-950 text-slate-100 overflow-hidden">
+      {/* HEADER */}
+      <header className="h-16 bg-slate-900/95 border-b border-slate-800 flex items-center justify-between px-3 lg:px-6 shadow-sm z-30 relative">
+        {/* Left: Brand + Exam title */}
+        <div className="flex items-center gap-3">
+          <div className="px-3 py-1.5 rounded-md bg-slate-950 border border-slate-700 flex flex-col justify-center">
+            <span className="text-[10px] font-semibold text-slate-400 leading-none">ONLINE</span>
+            <span className="text-xs font-bold tracking-wide text-slate-50 leading-tight">ASSESSMENT</span>
           </div>
-          <h1 className="hidden md:block font-bold text-slate-700 text-lg truncate max-w-xs">{exam.title}</h1>
+          <div className="hidden md:flex flex-col">
+            <span className="text-xs uppercase text-slate-500 font-semibold">Exam</span>
+            <h1 className="font-semibold text-sm text-slate-100 max-w-xs truncate">{exam.title}</h1>
+          </div>
         </div>
 
-        <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-3">
-          <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-lg font-bold border shadow-inner transition-colors
-               ${timeLeft < 300 ? 'bg-rose-50 border-rose-200 text-rose-600 animate-pulse' : 'bg-gray-50 border-gray-200 text-slate-700'}`}>
+        {/* Center: Timer + Save status */}
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-3">
+          <div
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-sm font-semibold border shadow-inner transition-colors
+            ${timeLeft < 300
+                ? 'bg-rose-900/40 border-rose-700 text-rose-100'
+                : timeLeft < 900
+                  ? 'bg-amber-900/40 border-amber-700 text-amber-100'
+                  : 'bg-slate-900/70 border-slate-700 text-slate-100'
+              }`}
+          >
             <Clock className="w-4 h-4" /> {formatTime(timeLeft)}
           </div>
 
-          {saveStatus === 'saving' ? <Loader2 className="w-4 h-4 text-amber-500 animate-spin" title="Saving..." /> :
-            saveStatus === 'error' ? <WifiOff className="w-4 h-4 text-rose-500 animate-pulse" title="Offline" /> :
-              <CloudCheck className="w-4 h-4 text-emerald-500" title="Saved" />}
+          {saveStatus === 'saving' ? (
+            <div className="flex items-center gap-1 text-xs text-amber-300">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Saving</span>
+            </div>
+          ) : saveStatus === 'error' ? (
+            <div className="flex items-center gap-1 text-xs text-rose-300">
+              <WifiOff className="w-4 h-4 animate-pulse" />
+              <span>Offline</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 text-xs text-emerald-300">
+              <CloudCheck className="w-4 h-4" />
+              <span>Saved</span>
+            </div>
+          )}
         </div>
 
-        <div className="flex items-center gap-2 md:gap-4">
-          <div className="hidden sm:flex items-center bg-gray-100 rounded-lg p-1 border border-gray-200">
+        {/* Right: Controls */}
+        <div className="flex items-center gap-2 md:gap-3">
+          {/* Font controls */}
+          <div className="hidden sm:flex items-center bg-slate-900 border border-slate-700 rounded-md">
             <button
-              onClick={() => setTextSize(s => s === 'xl' ? 'lg' : s === 'lg' ? 'base' : 'sm')}
-              className="p-1.5 hover:bg-white hover:shadow-sm rounded transition disabled:opacity-30"
+              onClick={() => setTextSize(s => (s === 'xl' ? 'lg' : s === 'lg' ? 'base' : 'sm'))}
+              className="px-2 py-1 hover:bg-slate-800 rounded-l-md transition disabled:opacity-30"
               disabled={textSize === 'sm'}
-              title="Decrease Font Size"
+              title="Decrease font size"
             >
-              <Type className="w-3 h-3" />
+              <Type className="w-3 h-3 text-slate-300" />
             </button>
-            <div className="w-px h-4 bg-gray-300 mx-1"></div>
+            <div className="w-px h-4 bg-slate-700" />
             <button
-              onClick={() => setTextSize(s => s === 'sm' ? 'base' : s === 'base' ? 'lg' : 'xl')}
-              className="p-1.5 hover:bg-white hover:shadow-sm rounded transition disabled:opacity-30"
+              onClick={() => setTextSize(s => (s === 'sm' ? 'base' : s === 'base' ? 'lg' : 'xl'))}
+              className="px-2 py-1 hover:bg-slate-800 rounded-r-md transition disabled:opacity-30"
               disabled={textSize === 'xl'}
-              title="Increase Font Size"
+              title="Increase font size"
             >
-              <Type className="w-4 h-4" />
+              <Type className="w-4 h-4 text-slate-100" />
             </button>
           </div>
+
+          {/* Sidebar toggle */}
           <button
-            className={`p-2 rounded-lg transition-colors ${showSidebar ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-gray-100'}`}
+            className={`p-2 rounded-md border border-slate-700 text-slate-200 hover:bg-slate-800 transition-colors lg:hidden`}
             onClick={() => setShowSidebar(!showSidebar)}
-            title={showSidebar ? "Hide Sidebar" : "Show Question Map"}
+            title={showSidebar ? 'Hide Question Palette' : 'Show Question Palette'}
           >
-            {showSidebar ? <Maximize2 className="w-5 h-5" /> : <ListFilter className="w-5 h-5" />}
+            {showSidebar ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
-        <div className="absolute bottom-0 left-0 w-full h-[3px] bg-gray-100">
-          <div className="h-full bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.5)] transition-all duration-500 ease-out" style={{ width: `${progressPercent}%` }} />
+
+        {/* Progress line */}
+        <div className="absolute bottom-0 left-0 w-full h-[2px] bg-slate-900">
+          <div
+            className="h-full bg-sky-500 transition-all duration-500 ease-out"
+            style={{ width: `${progressPercent}%` }}
+          />
         </div>
       </header>
 
-      {/* 2. WARNING BANNER */}
+      {/* WARNING BANNER */}
       {(!isFullScreen || warnings > 0) && (
-        <div className="bg-rose-600 text-white px-4 py-2 text-sm font-bold flex justify-between items-center z-20 shadow-md animate-in slide-in-from-top-2">
+        <div className="bg-slate-900 border-b border-amber-500 text-amber-100 px-4 py-2 text-xs md:text-sm font-medium flex justify-between items-center z-20">
           <div className="flex items-center gap-2">
-            <ShieldAlert className="w-4 h-4" />
-            <span>Warnings: {warnings}/{MAX_WARNINGS}</span>
-            {!isFullScreen && <span className="hidden sm:inline"> | Fullscreen required!</span>}
+            <ShieldAlert className="w-4 h-4 text-amber-400" />
+            <span>
+              Warnings: <span className="font-semibold">{warnings}</span> / {MAX_WARNINGS}
+            </span>
+            {!isFullScreen && (
+              <span className="hidden sm:inline text-rose-200 font-semibold ml-2">Fullscreen is mandatory.</span>
+            )}
           </div>
           {!isFullScreen && (
-            <button onClick={requestFullScreen} className="bg-white/10 hover:bg-white/20 text-white border border-white/30 px-3 py-1 rounded text-xs uppercase font-bold transition flex items-center gap-2">
-              <Maximize2 className="w-3 h-3" /> Fullscreen
+            <button
+              onClick={requestFullScreen}
+              className="bg-sky-600 hover:bg-sky-500 text-white border border-sky-400 px-3 py-1 rounded text-xs font-semibold flex items-center gap-1"
+            >
+              <Maximize2 className="w-3 h-3" /> Re-enter Fullscreen
             </button>
           )}
         </div>
       )}
 
-      {/* 3. MAIN WORKSPACE */}
-      <div className="flex flex-1 overflow-hidden relative">
-        <main className="flex-1 flex flex-col h-full overflow-hidden relative bg-[#F8FAFC]">
-
+      {/* MAIN LAYOUT */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* MAIN CONTENT */}
+        <main className="flex-1 flex flex-col h-full overflow-hidden relative">
+          {/* Fullscreen blocker */}
           {!isFullScreen && (
-            <div className="absolute inset-0 z-50 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center text-center p-4">
-              <div className="bg-rose-50 p-6 rounded-full mb-4 ring-4 ring-rose-100 animate-pulse"><AlertOctagon className="w-12 h-12 text-rose-500" /></div>
-              <h1 className="text-2xl font-bold text-slate-900 mb-2">Assessment Paused</h1>
-              <p className="text-slate-500 mb-6 max-w-sm">Focus mode is mandatory. Return to fullscreen to continue.</p>
-              <button onClick={requestFullScreen} className="bg-slate-900 text-white px-8 py-3 rounded-lg font-bold shadow-lg hover:bg-slate-800 transition-all">Resume Assessment</button>
+            <div className="absolute inset-0 z-40 bg-slate-950/95 backdrop-blur-sm flex flex-col items-center justify-center text-center p-4">
+              <div className="mb-5 flex items-center justify-center">
+                <div className="bg-rose-900/60 p-4 rounded-full border border-rose-700">
+                  <AlertOctagon className="w-10 h-10 text-rose-300" />
+                </div>
+              </div>
+              <h1 className="text-xl md:text-2xl font-bold text-slate-50 mb-2">Assessment Paused</h1>
+              <p className="text-slate-400 mb-6 max-w-md text-sm">
+                The test is paused because fullscreen mode was exited. Please return to fullscreen to continue your exam.
+              </p>
+              <button
+                onClick={requestFullScreen}
+                className="bg-sky-600 hover:bg-sky-500 text-white px-8 py-2.5 rounded-md font-semibold shadow-sm border border-sky-400"
+              >
+                Resume in Fullscreen
+              </button>
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 scroll-smooth">
-            <div className="max-w-4xl mx-auto space-y-6">
-
-              <div className={`bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden transition-all duration-300
-                 ${markedForReview.has(currentQ.id) ? 'ring-2 ring-purple-400 ring-offset-2' : ''}`}>
-
-                <div className="bg-gray-50/80 border-b border-gray-100 p-5 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="space-y-2">
-                    <div className="flex items-baseline gap-3">
-                      <h2 className="text-2xl font-bold text-slate-800">Question {currentQIndex + 1}</h2>
-                      <span className="text-sm font-medium text-slate-400">of {questions.length}</span>
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+            <div className="max-w-4xl mx-auto space-y-5">
+              {/* QUESTION CARD */}
+              <div
+                className={`rounded-xl border border-slate-800 bg-slate-900/70 shadow-sm overflow-hidden ${markedForReview.has(currentQ.id) ? 'outline outline-2 outline-violet-500/70' : ''
+                  }`}
+              >
+                {/* Question header bar */}
+                <div className="px-4 md:px-6 py-3 border-b border-slate-800 bg-slate-950/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-baseline gap-2">
+                      <h2 className="text-lg md:text-xl font-semibold text-slate-50">
+                        Question {currentQIndex + 1}
+                      </h2>
+                      <span className="text-xs text-slate-500">of {questions.length}</span>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={`px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide border
-                               ${currentQ.complexity === 'Hard' ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                          currentQ.complexity === 'Medium' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                            'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                      <span
+                        className={`px-2 py-0.5 rounded-full font-semibold border ${currentQ.complexity === 'Hard'
+                          ? 'bg-rose-950/50 text-rose-200 border-rose-700'
+                          : currentQ.complexity === 'Medium'
+                            ? 'bg-amber-950/40 text-amber-200 border-amber-700'
+                            : 'bg-emerald-950/40 text-emerald-200 border-emerald-700'
+                          }`}
+                      >
                         {currentQ.complexity || 'Easy'}
                       </span>
-                      <span className={`px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide border flex items-center gap-1.5
-                                ${currentQ.type === 'multi-select' ? 'bg-purple-50 text-purple-700 border-purple-200' :
-                          'bg-blue-50 text-blue-700 border-blue-200'}`}>
-                        {currentQ.type === 'multi-select' ? <ListFilter className="w-3 h-3" /> : <Circle className="w-3 h-3" />}
+                      <span
+                        className={`px-2 py-0.5 rounded-full font-semibold border flex items-center gap-1 ${currentQ.type === 'multi-select'
+                          ? 'bg-violet-950/40 text-violet-200 border-violet-700'
+                          : 'bg-sky-950/40 text-sky-200 border-sky-700'
+                          }`}
+                      >
+                        {currentQ.type === 'multi-select' ? (
+                          <ListFilter className="w-3 h-3" />
+                        ) : (
+                          <Circle className="w-3 h-3" />
+                        )}
                         {currentQ.type.replace('-', ' ')}
                       </span>
-                      <span className="px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide border bg-slate-100 text-slate-700 border-slate-200">
-                        +{currentQ.points} Pts
+                      <span className="px-2 py-0.5 rounded-full font-semibold border border-slate-700 text-slate-200">
+                        Marks: {currentQ.points}
                       </span>
                     </div>
                   </div>
+
+                  {/* Mark for review button */}
                   <button
                     onClick={() => {
                       setMarkedForReview(prev => {
@@ -424,92 +540,108 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
                         return next;
                       });
                     }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition border shadow-sm active:scale-95
-                        ${markedForReview.has(currentQ.id)
-                        ? 'bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-200'
-                        : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-800'}`}
+                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs md:text-sm font-semibold border transition ${markedForReview.has(currentQ.id)
+                      ? 'bg-violet-900/70 border-violet-600 text-violet-50'
+                      : 'bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800'
+                      }`}
                   >
-                    <Flag className={`w-4 h-4 ${markedForReview.has(currentQ.id) ? 'fill-current' : ''}`} />
-                    {markedForReview.has(currentQ.id) ? 'Marked' : 'Mark for Review'}
+                    <Flag className={`w-4 h-4 ${markedForReview.has(currentQ.id) ? 'fill-violet-300' : ''}`} />
+                    {markedForReview.has(currentQ.id) ? 'Marked for Review' : 'Mark for Review'}
                   </button>
                 </div>
 
-                <div className="p-6 md:p-8 lg:p-10">
-                  <div className="prose prose-slate max-w-none mb-10">
-                    <p className={`leading-relaxed text-slate-800 font-medium ${getTextClass()}`}>{currentQ.question_text}</p>
+                {/* Question body */}
+                <div className="px-4 md:px-6 lg:px-8 py-6 md:py-7">
+                  {/* Question text */}
+                  <div className="mb-6">
+                    <p className={`leading-relaxed text-slate-100 ${getTextClass()}`}>
+                      {currentQ.question_text}
+                    </p>
                   </div>
 
+                  {/* Options */}
                   <div className="space-y-3">
-                    {(currentQ.type === "single-choice" || currentQ.type === "multi-select") &&
-                      ["A", "B", "C", "D"].map((opt) => {
+                    {(currentQ.type === 'single-choice' || currentQ.type === 'multi-select') &&
+                      ['A', 'B', 'C', 'D'].map(opt => {
                         const selected = isSelected(currentQ.id, opt, currentQ.type);
-
-                        // Visuals: Single (Radio) vs Multi (Checkbox)
                         const isSingle = currentQ.type === 'single-choice';
 
-                        // Card Styling
                         const cardStyle = selected
-                          ? `${typeColors.border} ${typeColors.light} shadow-sm z-10`
-                          : `border-slate-200 hover:border-slate-300 bg-white hover:shadow-md hover:-translate-y-0.5`;
+                          ? `${typeColors.border} ${typeColors.light} shadow-sm`
+                          : 'border-slate-800 bg-slate-900/80 hover:bg-slate-900 hover:border-slate-600';
 
-                        // Icon Styling (Circle vs Square)
-                        const iconContainerClass = isSingle ? 'rounded-full' : 'rounded-lg';
+                        const iconContainerClass = isSingle ? 'rounded-full' : 'rounded-md';
                         const iconStyle = selected
-                          ? `${typeColors.bg} ${typeColors.border} text-white scale-110`
-                          : `border-slate-300 bg-slate-50 text-slate-400 group-hover:bg-white group-hover:${typeColors.border} group-hover:${typeColors.text}`;
+                          ? `${typeColors.bg} ${typeColors.border} text-white`
+                          : 'border-slate-600 bg-slate-950 text-slate-400 group-hover:border-sky-500 group-hover:text-sky-300';
 
                         return (
                           <div
                             key={opt}
                             onClick={() => handleOptionClick(currentQ.id, opt)}
-                            className={`group relative flex items-center p-4 md:p-5 rounded-xl border-2 cursor-pointer transition-all duration-200 ease-out ${cardStyle}`}
+                            className={`group relative flex items-center p-3.5 md:p-4 rounded-lg border cursor-pointer transition ${cardStyle}`}
                           >
-                            <div className={`w-10 h-10 border-2 flex items-center justify-center mr-5 shrink-0 transition-all duration-200 ${iconContainerClass} ${iconStyle}`}>
+                            <div
+                              className={`w-9 h-9 border-2 flex items-center justify-center mr-4 shrink-0 transition ${iconContainerClass} ${iconStyle}`}
+                            >
                               {selected ? (
-                                isSingle ? <div className="w-2.5 h-2.5 bg-white rounded-full" /> : <Check className="w-5 h-5" />
+                                isSingle ? (
+                                  <div className="w-2.5 h-2.5 bg-white rounded-full" />
+                                ) : (
+                                  <Check className="w-4 h-4" />
+                                )
                               ) : (
-                                <span className="font-bold text-lg">{opt}</span>
+                                <span className="font-semibold text-sm">{opt}</span>
                               )}
                             </div>
-                            <span className={`font-medium transition-colors ${selected ? 'text-slate-900' : 'text-slate-600'} ${getTextClass()}`}>
+                            <span
+                              className={`font-medium ${getTextClass()} ${selected ? 'text-slate-50' : 'text-slate-200'
+                                }`}
+                            >
                               {currentQ[`option_${opt.toLowerCase()}` as keyof Question]}
                             </span>
                           </div>
                         );
                       })}
 
-                    {currentQ.type === "true-false" && ["True", "False"].map((txt) => {
-                      const val = txt === "True" ? "A" : "B";
-                      const selected = isSelected(currentQ.id, val, "single-choice");
-                      return (
-                        <button
-                          key={txt}
-                          onClick={() => handleOptionClick(currentQ.id, val)}
-                          className={`w-full py-5 px-8 rounded-xl font-bold text-xl border-2 transition-all text-left flex items-center gap-4 hover:shadow-md hover:-translate-y-0.5
-                                    ${selected
-                              ? txt === "True" ? "bg-emerald-50 border-emerald-500 text-emerald-800 shadow-sm" : "bg-rose-50 border-rose-500 text-rose-800 shadow-sm"
-                              : "bg-white border-slate-200 text-slate-600 hover:border-blue-400"
-                            }`}
-                        >
-                          <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${selected ? 'border-current scale-110' : 'border-slate-300'}`}>
-                            {selected && <div className="w-3 h-3 bg-current rounded-full" />}
-                          </div>
-                          {txt}
-                        </button>
-                      );
-                    })}
+                    {currentQ.type === 'true-false' &&
+                      ['True', 'False'].map(txt => {
+                        const val = txt === 'True' ? 'A' : 'B';
+                        const selected = isSelected(currentQ.id, val, 'single-choice');
+                        return (
+                          <button
+                            key={txt}
+                            onClick={() => handleOptionClick(currentQ.id, val)}
+                            className={`w-full py-4 px-6 rounded-lg text-left flex items-center gap-4 border-2 transition text-base font-semibold
+                              ${selected
+                                ? txt === 'True'
+                                  ? 'bg-emerald-900/40 border-emerald-500 text-emerald-100'
+                                  : 'bg-rose-900/40 border-rose-500 text-rose-100'
+                                : 'bg-slate-900/80 border-slate-800 text-slate-200 hover:border-slate-600'
+                              }`}
+                          >
+                            <div
+                              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selected ? 'border-current' : 'border-slate-500'
+                                }`}
+                            >
+                              {selected && <div className="w-2.5 h-2.5 bg-current rounded-full" />}
+                            </div>
+                            {txt}
+                          </button>
+                        );
+                      })}
 
-                    {currentQ.type === "descriptive" && (
+                    {currentQ.type === 'descriptive' && (
                       <textarea
-                        value={answers[currentQ.id] || ""}
-                        onChange={(e) => {
+                        value={answers[currentQ.id] || ''}
+                        onChange={e => {
                           const newAns = { ...answers, [currentQ.id]: e.target.value };
                           setAnswers(newAns);
                           if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
                           autoSaveTimerRef.current = setTimeout(() => saveToBackend(newAns), 1500);
                         }}
-                        rows={8}
-                        className={`w-full p-5 border-2 border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition shadow-sm resize-none text-slate-700 placeholder-slate-400 ${getTextClass()}`}
+                        rows={7}
+                        className={`w-full p-4 border-2 border-slate-800 rounded-lg bg-slate-950/80 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-600 shadow-sm ${getTextClass()}`}
                         placeholder="Type your answer here..."
                       />
                     )}
@@ -519,22 +651,26 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
             </div>
           </div>
 
-          <div className="h-20 bg-white border-t border-slate-200 px-4 md:px-8 flex items-center justify-between shrink-0 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.05)] z-20">
-            <div className="flex items-center gap-4">
+          {/* BOTTOM BAR */}
+          <div className="h-16 bg-slate-900/95 border-t border-slate-800 px-3 md:px-6 flex items-center justify-between text-sm">
+            <div className="flex items-center gap-3">
               <button
                 disabled={currentQIndex === 0}
                 onClick={() => setCurrentQIndex(i => i - 1)}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-lg font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:hover:bg-transparent transition"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-md font-medium border border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-slate-900"
               >
-                <ChevronLeft className="w-5 h-5" /> Previous
+                <ChevronLeft className="w-4 h-4" />
+                Previous
               </button>
 
-              <div className="hidden lg:flex items-center gap-2 text-xs text-slate-400 font-medium px-4 border-l border-slate-200 h-8">
-                <Keyboard className="w-4 h-4" /> Use <span className="bg-slate-100 border border-slate-200 rounded px-1">←</span> <span className="bg-slate-100 border border-slate-200 rounded px-1">→</span>
+              <div className="hidden lg:flex items-center gap-2 text-[11px] text-slate-500 border-l border-slate-700 pl-3">
+                <Keyboard className="w-4 h-4" />
+                Use <span className="px-1.5 py-0.5 border border-slate-700 rounded bg-slate-950">←</span>
+                <span className="px-1.5 py-0.5 border border-slate-700 rounded bg-slate-950">→</span>
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => {
                   const newAns = { ...answers };
@@ -542,58 +678,117 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
                   setAnswers(newAns);
                   saveToBackend(newAns);
                 }}
-                className="hidden sm:block text-sm font-semibold text-slate-400 hover:text-rose-500 transition hover:underline"
+                className="hidden sm:inline-flex text-xs md:text-sm font-medium text-slate-400 hover:text-rose-300 hover:underline"
               >
-                Clear
+                Clear Response
               </button>
 
               <button
                 disabled={currentQIndex === questions.length - 1}
                 onClick={() => setCurrentQIndex(i => i + 1)}
-                className="flex items-center gap-2 px-8 py-3 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-600/20 disabled:opacity-50 disabled:bg-slate-300 disabled:shadow-none transition transform active:scale-95"
+                className="inline-flex items-center gap-2 px-5 md:px-6 py-2.5 rounded-md font-semibold bg-sky-600 hover:bg-sky-500 text-slate-50 shadow-sm disabled:bg-slate-700 disabled:opacity-60"
               >
-                Next <ChevronRight className="w-5 h-5" />
+                Save & Next
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
         </main>
 
-        <aside className={`fixed inset-y-0 right-0 w-80 bg-white border-l shadow-2xl transform transition-transform duration-300 z-40 flex flex-col ${showSidebar ? 'translate-x-0' : 'translate-x-full'} lg:relative lg:translate-x-0 ${!showSidebar ? 'lg:hidden' : ''}`}>
-
-          <div className="p-4 border-b border-slate-100 flex justify-between items-center h-16 shrink-0 bg-slate-50/50">
-            <h3 className="font-bold text-slate-800 flex items-center gap-2">
-              <MousePointerClick className="w-4 h-4 text-blue-500" /> Question Palette
+        {/* SIDEBAR: QUESTION PALETTE */}
+        <aside
+          className={`fixed inset-y-16 right-0 w-72 bg-slate-950 border-l border-slate-800 transform transition-transform duration-300 z-30 flex flex-col
+            ${showSidebar ? 'translate-x-0' : 'translate-x-full'}
+            lg:relative lg:translate-x-0`}
+        >
+          {/* Palette header */}
+          <div className="h-14 px-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/95">
+            <h3 className="font-semibold text-slate-100 flex items-center gap-2 text-sm">
+              <MousePointerClick className="w-4 h-4 text-sky-400" />
+              Question Palette
             </h3>
-            <button className="lg:hidden text-slate-400 hover:text-slate-600 p-1" onClick={() => setShowSidebar(false)}><X className="w-5 h-5" /></button>
+            <button
+              className="lg:hidden text-slate-500 hover:text-slate-200"
+              onClick={() => setShowSidebar(false)}
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
 
-          <div className="p-2 bg-white border-b border-slate-100 flex gap-1">
-            <button onClick={() => setPaletteFilter('all')} className={`flex-1 py-1.5 text-xs font-bold rounded ${paletteFilter === 'all' ? 'bg-slate-100 text-slate-900' : 'text-slate-500 hover:bg-slate-50'}`}>All</button>
-            <button onClick={() => setPaletteFilter('unanswered')} className={`flex-1 py-1.5 text-xs font-bold rounded ${paletteFilter === 'unanswered' ? 'bg-amber-50 text-amber-700' : 'text-slate-500 hover:bg-slate-50'}`}>Unanswered</button>
-            <button onClick={() => setPaletteFilter('marked')} className={`flex-1 py-1.5 text-xs font-bold rounded ${paletteFilter === 'marked' ? 'bg-purple-50 text-purple-700' : 'text-slate-500 hover:bg-slate-50'}`}>Marked</button>
+          {/* Palette filter */}
+          <div className="px-3 py-2 border-b border-slate-800 bg-slate-950/90 flex gap-1 text-[11px] font-semibold">
+            <button
+              onClick={() => setPaletteFilter('all')}
+              className={`flex-1 py-1.5 rounded-md ${paletteFilter === 'all'
+                ? 'bg-slate-800 text-slate-50'
+                : 'text-slate-400 hover:bg-slate-900'
+                }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setPaletteFilter('unanswered')}
+              className={`flex-1 py-1.5 rounded-md ${paletteFilter === 'unanswered'
+                ? 'bg-rose-900/60 text-rose-100'
+                : 'text-slate-400 hover:bg-slate-900'
+                }`}
+            >
+              Unanswered
+            </button>
+            <button
+              onClick={() => setPaletteFilter('marked')}
+              className={`flex-1 py-1.5 rounded-md ${paletteFilter === 'marked'
+                ? 'bg-violet-900/60 text-violet-100'
+                : 'text-slate-400 hover:bg-slate-900'
+                }`}
+            >
+              Marked
+            </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 text-[10px] uppercase font-bold text-slate-500 p-3 bg-white border-b border-slate-100">
-            <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-emerald-500" /> Answered</div>
-            <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-purple-500" /> Marked</div>
-            <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-amber-400" /> Visited</div>
-            <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-slate-200" /> Unseen</div>
+          {/* Legend */}
+          <div className="px-4 py-3 border-b border-slate-800 bg-slate-950 text-[10px] uppercase font-semibold text-slate-400 grid grid-cols-2 gap-y-2 gap-x-3">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> Answered
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-violet-500" /> Marked
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-amber-400" /> Visited
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-slate-800" /> Not Visited
+            </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-5 scrollbar-thin scrollbar-thumb-slate-200">
+          {/* Palette grid */}
+          <div className="flex-1 overflow-y-auto px-4 py-4">
             {filteredQuestions.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-40 text-slate-400 text-sm"><Filter className="w-8 h-8 mb-2 opacity-20" /> No questions found</div>
+              <div className="flex flex-col items-center justify-center h-40 text-slate-500 text-xs gap-2">
+                <Filter className="w-6 h-6 opacity-40" />
+                <span>No questions match this filter</span>
+              </div>
             ) : (
-              <div className="grid grid-cols-5 gap-3">
-                {filteredQuestions.map((q) => {
+              <div className="grid grid-cols-5 gap-2.5">
+                {filteredQuestions.map(q => {
                   const idx = q.originalIdx;
-                  let colorClass = 'bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300'; // Default
+                  let colorClass =
+                    'bg-slate-950 text-slate-300 border border-slate-700 hover:border-sky-500';
 
-                  if (visited.has(q.id)) colorClass = 'bg-amber-50 text-amber-700 border-amber-200'; // Visited (Skipped)
-                  if (answers[q.id]) colorClass = 'bg-emerald-500 text-white border-emerald-500 shadow-emerald-200'; // Answered
-                  if (markedForReview.has(q.id)) colorClass = 'bg-purple-500 text-white border-purple-500 shadow-purple-200'; // Marked
+                  if (visited.has(q.id))
+                    colorClass =
+                      'bg-amber-900/40 text-amber-100 border border-amber-700 hover:border-amber-500';
+                  if (answers[q.id])
+                    colorClass =
+                      'bg-emerald-900/50 text-emerald-50 border border-emerald-500 shadow-sm';
+                  if (markedForReview.has(q.id))
+                    colorClass =
+                      'bg-violet-900/50 text-violet-50 border border-violet-500 shadow-sm';
 
-                  if (idx === currentQIndex) colorClass = 'ring-2 ring-blue-500 border-transparent bg-blue-50 text-blue-700 font-extrabold';
+                  if (idx === currentQIndex)
+                    colorClass =
+                      'bg-sky-900/70 text-sky-50 border border-sky-400 ring-1 ring-sky-500';
 
                   return (
                     <button
@@ -602,12 +797,9 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
                         setCurrentQIndex(idx);
                         if (window.innerWidth < 1024) setShowSidebar(false);
                       }}
-                      className={`aspect-square rounded-lg text-sm font-bold border transition-all flex items-center justify-center relative shadow-sm hover:shadow-md active:scale-95 ${colorClass}`}
+                      className={`aspect-square rounded-md text-xs font-semibold flex items-center justify-center transition ${colorClass}`}
                     >
                       {idx + 1}
-                      {markedForReview.has(q.id) && !answers[q.id] && idx !== currentQIndex && (
-                        <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-white rounded-full" />
-                      )}
                     </button>
                   );
                 })}
@@ -615,19 +807,26 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
             )}
           </div>
 
-          <div className="p-5 border-t border-slate-100 bg-slate-50">
-            <button onClick={() => submitAttempt(false)} className="w-full bg-slate-900 hover:bg-slate-800 text-white py-3.5 rounded-xl font-bold transition shadow-lg shadow-slate-900/10 flex items-center justify-center gap-2 hover:-translate-y-0.5 active:translate-y-0">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400" /> Submit Exam
+          {/* Sidebar footer */}
+          <div className="px-4 py-4 border-t border-slate-800 bg-slate-950/95">
+            <button
+              onClick={() => submitAttempt(false)}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-slate-50 py-2.5 rounded-md font-semibold text-sm flex items-center justify-center gap-2 shadow-sm"
+            >
+              <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+              Review & Submit
             </button>
-            <p className="text-center text-xs text-slate-400 mt-3 font-medium">
-              {Object.keys(answers).length} of {questions.length} questions answered
+            <p className="text-center text-[11px] text-slate-500 mt-2">
+              {Object.keys(answers).length} of {questions.length} answered
             </p>
           </div>
         </aside>
+
+        {/* Review Modal */}
         <ReviewAndSubmitModal
           isOpen={showSubmitModal}
           onClose={() => setShowSubmitModal(false)}
-          onSubmit={() => submitAttempt(true)} // Force submission when confirmed
+          onSubmit={() => submitAttempt(true)}
           questions={questions}
           answers={answers}
           markedForReview={markedForReview}
@@ -637,7 +836,6 @@ export function ExamTaking({ exam, onComplete, onCancel }: Props) {
           MAX_WARNINGS={MAX_WARNINGS}
           onQuestionJump={handleQuestionJump}
         />
-
       </div>
     </div>
   );

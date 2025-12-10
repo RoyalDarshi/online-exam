@@ -9,9 +9,9 @@ import {
     Circle,
     Clock,
     ShieldAlert,
-    ArrowRight,
+    ArrowRight
 } from 'lucide-react';
-import { Question } from '../types/models'; // Assuming Question type is correctly imported/defined
+import { Question } from '../types/models';
 
 type ModalProps = {
     isOpen: boolean;
@@ -27,7 +27,6 @@ type ModalProps = {
     onQuestionJump: (index: number) => void;
 };
 
-// Helper function (can be extracted to ExamTaking or a utility)
 const formatTime = (s: number) => {
     const h = Math.floor(s / 3600);
     const m = Math.floor((s % 3600) / 60);
@@ -46,7 +45,7 @@ const ReviewAndSubmitModal: React.FC<ModalProps> = ({
     timeLeft,
     warnings,
     MAX_WARNINGS,
-    onQuestionJump,
+    onQuestionJump
 }) => {
     if (!isOpen) return null;
 
@@ -54,130 +53,239 @@ const ReviewAndSubmitModal: React.FC<ModalProps> = ({
     const answeredCount = Object.keys(answers).filter(qId => answers[qId]).length;
     const markedCount = markedForReview.size;
     const unansweredCount = totalQuestions - answeredCount;
-    const skippedCount = questions.filter(q => visited.has(q.id) && !answers[q.id] && !markedForReview.has(q.id)).length;
+    const skippedCount = questions.filter(
+        q => visited.has(q.id) && !answers[q.id] && !markedForReview.has(q.id)
+    ).length;
     const unseenCount = totalQuestions - visited.size;
 
-    const isComplete = unansweredCount === 0;
-
-    // Function to get the status text/icon for a question in the palette
     const getQuestionStatus = (q: Question, index: number) => {
         const isAnswered = !!answers[q.id];
         const isMarked = markedForReview.has(q.id);
         const isVisited = visited.has(q.id);
 
-        let status: { icon: React.ReactNode, text: string, color: string };
+        let status: { icon: React.ReactNode; text: string; color: string };
 
         if (isAnswered && isMarked) {
-            status = { icon: <CheckCircle2 className="w-3 h-3 fill-white text-purple-500" />, text: 'Answered & Marked', color: 'bg-purple-500/10 text-purple-700' };
+            status = {
+                icon: <CheckCircle2 className="w-3 h-3 text-violet-300" />,
+                text: 'Answered & Marked',
+                color: 'bg-violet-950/60 border border-violet-800 text-violet-100'
+            };
         } else if (isAnswered) {
-            status = { icon: <CheckCircle2 className="w-3 h-3 text-emerald-500" />, text: 'Answered', color: 'bg-emerald-500/10 text-emerald-700' };
+            status = {
+                icon: <CheckCircle2 className="w-3 h-3 text-emerald-300" />,
+                text: 'Answered',
+                color: 'bg-emerald-950/60 border border-emerald-800 text-emerald-100'
+            };
         } else if (isMarked) {
-            status = { icon: <Flag className="w-3 h-3 fill-purple-500 text-purple-500" />, text: 'Marked for Review', color: 'bg-purple-500/10 text-purple-700' };
+            status = {
+                icon: <Flag className="w-3 h-3 text-violet-300" />,
+                text: 'Marked',
+                color: 'bg-violet-950/60 border border-violet-800 text-violet-100'
+            };
         } else if (isVisited) {
-            status = { icon: <ArrowRight className="w-3 h-3 text-amber-500" />, text: 'Skipped', color: 'bg-amber-500/10 text-amber-700' };
+            status = {
+                icon: <ArrowRight className="w-3 h-3 text-amber-300" />,
+                text: 'Visited',
+                color: 'bg-amber-950/40 border border-amber-800 text-amber-100'
+            };
         } else {
-            status = { icon: <Circle className="w-3 h-3 text-slate-400" />, text: 'Unseen', color: 'bg-slate-100 text-slate-600' };
+            status = {
+                icon: <Circle className="w-3 h-3 text-slate-500" />,
+                text: 'Not Visited',
+                color: 'bg-slate-950/60 border border-slate-800 text-slate-300'
+            };
         }
 
         return (
             <button
                 key={q.id}
-                onClick={() => { onQuestionJump(index); onClose(); }}
-                className={`flex items-center gap-2 p-2 rounded-lg text-sm font-medium transition-colors hover:bg-slate-100 ${status.color}`}
+                onClick={() => {
+                    onQuestionJump(index);
+                    onClose();
+                }}
+                className={`flex items-center gap-2 p-2.5 rounded-md text-xs md:text-sm font-medium transition-colors text-left ${status.color} hover:bg-slate-900`}
             >
                 <div className="w-4 h-4 flex items-center justify-center shrink-0">{status.icon}</div>
-                <span className="truncate">Q. {index + 1}</span>
-                <span className="text-xs font-semibold uppercase opacity-70 ml-auto hidden sm:inline-block">{status.text}</span>
+                <span className="truncate">Question {index + 1}</span>
+                <span className="ml-auto hidden sm:inline-block text-[10px] uppercase tracking-wide opacity-80">
+                    {status.text}
+                </span>
             </button>
         );
     };
 
-
     return (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-300">
-
-                {/* Modal Header */}
-                <div className="p-6 border-b border-gray-100 flex items-center justify-between shrink-0">
-                    <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-                        <CheckCircle2 className="w-6 h-6 text-blue-600" />
-                        Final Review & Submission
-                    </h2>
-                    <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-700 rounded-full transition hover:bg-slate-100">
-                        <X className="w-6 h-6" />
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 md:p-6">
+            <div className="bg-slate-950 border border-slate-800 rounded-xl w-full max-w-5xl max-h-[90vh] flex flex-col shadow-xl">
+                {/* Header */}
+                <div className="px-5 md:px-7 py-4 border-b border-slate-800 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-full bg-emerald-900/50 border border-emerald-700">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-300" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg md:text-xl font-semibold text-slate-50">
+                                Review & Confirm Submission
+                            </h2>
+                            <p className="text-xs text-slate-400">
+                                Check your progress before final submission. You cannot modify answers after submitting.
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="p-2 rounded-full hover:bg-slate-900 text-slate-400 hover:text-slate-100"
+                    >
+                        <X className="w-5 h-5" />
                     </button>
                 </div>
 
-                {/* Modal Content */}
-                <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8">
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto px-5 md:px-7 py-5 space-y-6">
+                    {/* Summary row */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 bg-slate-900/80 border border-slate-800 rounded-lg p-3 md:p-4">
+                        <SummaryStat
+                            label="Total Questions"
+                            value={totalQuestions}
+                            icon={<ListFilter className="w-4 h-4 text-sky-300" />}
+                        />
+                        <SummaryStat
+                            label="Answered"
+                            value={answeredCount}
+                            icon={<Check className="w-4 h-4 text-emerald-300" />}
+                        />
+                        <SummaryStat
+                            label="Unanswered"
+                            value={unansweredCount}
+                            icon={<X className="w-4 h-4 text-rose-300" />}
+                        />
+                        <SummaryStat
+                            label="Marked"
+                            value={markedCount}
+                            icon={<Flag className="w-4 h-4 text-violet-300" />}
+                        />
+                        <SummaryStat
+                            label="Skipped"
+                            value={skippedCount}
+                            icon={<ArrowRight className="w-4 h-4 text-amber-300" />}
+                        />
+                        <SummaryStat
+                            label="Not Visited"
+                            value={unseenCount}
+                            icon={<Circle className="w-4 h-4 text-slate-400" />}
+                        />
+                    </div>
 
-                    {/* Summary Panel */}
-                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 bg-blue-50/70 p-4 rounded-xl border border-blue-100 shadow-inner">
-                        <SummaryStat label="Total" value={totalQuestions} icon={<ListFilter className="w-5 h-5 text-blue-600" />} />
-                        <SummaryStat label="Answered" value={answeredCount} icon={<Check className="w-5 h-5 text-emerald-600" />} />
-                        <SummaryStat label="Unanswered" value={unansweredCount} icon={<X className="w-5 h-5 text-rose-600" />} />
-                        <SummaryStat label="Marked" value={markedCount} icon={<Flag className="w-5 h-5 text-purple-600" />} />
-                        <SummaryStat label="Time Left" value={formatTime(timeLeft)} icon={<Clock className="w-5 h-5 text-slate-600" />} />
+                    {/* Time + Warnings */}
+                    <div className="grid md:grid-cols-2 gap-4">
+                        <div className="flex items-center gap-3 bg-slate-900/80 border border-slate-800 rounded-lg px-3 py-3">
+                            <div className="p-2 rounded-full bg-slate-950 border border-slate-700">
+                                <Clock className="w-5 h-5 text-sky-300" />
+                            </div>
+                            <div>
+                                <p className="text-xs text-slate-400 uppercase tracking-wide">Time Remaining</p>
+                                <p className="text-lg font-semibold text-slate-50">{formatTime(timeLeft)}</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 bg-slate-900/80 border border-slate-800 rounded-lg px-3 py-3">
+                            <div className="p-2 rounded-full bg-slate-950 border border-slate-700">
+                                <ShieldAlert className="w-5 h-5 text-amber-300" />
+                            </div>
+                            <div>
+                                <p className="text-xs text-slate-400 uppercase tracking-wide">System Warnings</p>
+                                <p className="text-lg font-semibold text-slate-50">
+                                    {warnings} / {MAX_WARNINGS}
+                                </p>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Alerts */}
                     {(unansweredCount > 0 || warnings > 0) && (
-                        <div className="p-4 bg-amber-50 border-l-4 border-amber-400 text-amber-800 rounded-lg flex items-start gap-4 shadow-sm">
-                            <AlertTriangle className="w-5 h-5 mt-0.5 shrink-0" />
-                            <div className="space-y-1 text-sm font-medium">
-                                <p className="font-bold">Heads Up!</p>
-                                {unansweredCount > 0 && <p>- You have **{unansweredCount}** unanswered questions.</p>}
-                                {warnings > 0 && <p>- You have **{warnings}**/{MAX_WARNINGS} system warnings logged.</p>}
-                                <p>You can go back to review your answers.</p>
-                            </div>
-                        </div>
-                    )}
-                    {warnings >= MAX_WARNINGS - 1 && (
-                        <div className="p-4 bg-rose-50 border-l-4 border-rose-400 text-rose-800 rounded-lg flex items-start gap-4 shadow-sm">
-                            <ShieldAlert className="w-5 h-5 mt-0.5 shrink-0" />
-                            <div className="space-y-1 text-sm font-medium">
-                                <p className="font-bold">Critical Warning!</p>
-                                <p>You are approaching the **maximum allowed system violations**. Submission is strongly recommended.</p>
+                        <div className="p-3 md:p-4 bg-amber-950/40 border border-amber-700 rounded-lg flex gap-3 text-xs md:text-sm text-amber-100">
+                            <AlertTriangle className="w-4 h-4 md:w-5 md:h-5 mt-0.5 shrink-0 text-amber-300" />
+                            <div className="space-y-1">
+                                <p className="font-semibold">Please review before submitting:</p>
+                                {unansweredCount > 0 && (
+                                    <p>- You have {unansweredCount} unanswered question(s).</p>
+                                )}
+                                {warnings > 0 && (
+                                    <p>
+                                        - System recorded {warnings} out of {MAX_WARNINGS} allowed violations.
+                                    </p>
+                                )}
+                                <p>You may go back to the test to modify or complete your responses.</p>
                             </div>
                         </div>
                     )}
 
-                    {/* Question Palette for Jump */}
-                    <div className="space-y-4">
-                        <h3 className="text-xl font-bold text-slate-700 border-b pb-2">Review Question Status ({questions.length})</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+                    {warnings >= MAX_WARNINGS - 1 && (
+                        <div className="p-3 md:p-4 bg-rose-950/50 border border-rose-700 rounded-lg flex gap-3 text-xs md:text-sm text-rose-100">
+                            <ShieldAlert className="w-4 h-4 md:w-5 md:h-5 mt-0.5 shrink-0 text-rose-300" />
+                            <div className="space-y-1">
+                                <p className="font-semibold">Critical Notice</p>
+                                <p>
+                                    You are very close to the maximum allowed system violations. Further violations may lead to automatic
+                                    termination of the exam.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Question status list */}
+                    <div className="space-y-3">
+                        <h3 className="text-sm md:text-base font-semibold text-slate-100 border-b border-slate-800 pb-2">
+                            Question-wise Status
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                             {questions.map((q, index) => getQuestionStatus(q, index))}
                         </div>
                     </div>
                 </div>
 
-                {/* Modal Footer */}
-                <div className="p-6 bg-slate-50 border-t border-gray-100 flex justify-end gap-3 shrink-0 rounded-b-2xl">
-                    <button
-                        onClick={onClose}
-                        className="px-6 py-3 border border-slate-300 rounded-xl text-slate-600 font-bold hover:bg-slate-100 transition"
-                    >
-                        Go Back to Exam
-                    </button>
-                    <button
-                        onClick={onSubmit}
-                        className="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition shadow-lg shadow-slate-900/10 flex items-center gap-2 active:scale-95"
-                    >
-                        <CheckCircle2 className="w-5 h-5 text-emerald-400" /> Confirm & Submit Exam
-                    </button>
+                {/* Footer */}
+                <div className="px-5 md:px-7 py-4 border-t border-slate-800 bg-slate-950 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                    <div className="text-[11px] text-slate-400">
+                        <p className="font-medium">
+                            Once you click <span className="text-emerald-300">Confirm & Submit</span>, you will not be able to change
+                            any answer.
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2 justify-end">
+                        <button
+                            onClick={onClose}
+                            className="px-4 py-2 rounded-md border border-slate-700 bg-slate-950 text-slate-200 text-xs md:text-sm font-medium hover:bg-slate-900"
+                        >
+                            Return to Exam
+                        </button>
+                        <button
+                            onClick={onSubmit}
+                            className="px-4 md:px-5 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 text-slate-50 text-xs md:text-sm font-semibold flex items-center gap-2 shadow-sm"
+                        >
+                            <CheckCircle2 className="w-4 h-4 text-emerald-100" />
+                            Confirm & Submit
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     );
 };
 
-// Simple stateless component for summary stats
-const SummaryStat: React.FC<{ label: string; value: string | number; icon: React.ReactNode }> = ({ label, value, icon }) => (
-    <div className="flex items-center gap-3 p-2 bg-white/70 rounded-lg shadow-sm">
-        <div className="p-2 bg-white rounded-full border border-gray-100 shadow-sm">{icon}</div>
+const SummaryStat: React.FC<{ label: string; value: string | number; icon: React.ReactNode }> = ({
+    label,
+    value,
+    icon
+}) => (
+    <div className="flex items-center gap-3 p-2.5 bg-slate-950/70 rounded-md border border-slate-800">
+        <div className="p-2 rounded-full bg-slate-900 border border-slate-700 flex items-center justify-center">
+            {icon}
+        </div>
         <div>
-            <p className="text-xs font-medium text-slate-500 uppercase">{label}</p>
-            <p className="text-lg font-bold text-slate-800 leading-none mt-0.5">{value}</p>
+            <p className="text-[10px] uppercase tracking-wide text-slate-500">{label}</p>
+            <p className="text-base font-semibold text-slate-50 mt-0.5">{value}</p>
         </div>
     </div>
 );
