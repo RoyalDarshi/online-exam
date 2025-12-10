@@ -17,7 +17,7 @@ type TeacherQuestion = {
     topic: string;
     complexity: string;
     type: string;
-    questionText: string;
+    question_text: string;
     option1?: string;
     option2?: string;
     option3?: string;
@@ -31,7 +31,7 @@ type PreviewRow = {
     complexity: string;
     topic: string;
     type: string;
-    question: string;
+    question_text: string;
     option1?: string;
     option2?: string;
     option3?: string;
@@ -111,7 +111,7 @@ export function TeacherDashboard() {
         if (!row.complexity) errors.push("Complexity is required");
         if (!row.topic) errors.push("Topic is required");
         if (!row.type) errors.push("Type is required");
-        if (!row.question) errors.push("Question is required");
+        if (!row.question_text) errors.push("Question is required");
 
         const type = row.type?.toLowerCase();
 
@@ -270,7 +270,7 @@ export function TeacherDashboard() {
                 topic: editData.topic,
                 complexity: editData.complexity,
                 type: editData.type,
-                questionText: editData.questionText,
+                question_text: editData.question_text,
                 option1: editData.option1,
                 option2: editData.option2,
                 option3: editData.option3,
@@ -303,7 +303,7 @@ export function TeacherDashboard() {
         if (topicFilter && q.topic !== topicFilter) return false;
         if (
             search &&
-            !q.questionText.toLowerCase().includes(search.toLowerCase())
+            !q.question_text.toLowerCase().includes(search.toLowerCase())
         )
             return false;
         return true;
@@ -519,7 +519,7 @@ export function TeacherDashboard() {
                                                     <td className="border p-1">{r.complexity}</td>
                                                     <td className="border p-1">{r.type}</td>
                                                     <td className="border p-1 max-w-[200px]">
-                                                        <span className="line-clamp-2">{r.question}</span>
+                                                        <span className="line-clamp-2">{r.question_text}</span>
                                                     </td>
                                                     <td className="border p-1 text-red-600">
                                                         {r.errors.length > 0 ? r.errors.join("; ") : "OK"}
@@ -610,7 +610,7 @@ export function TeacherDashboard() {
                                                 </td>
                                                 <td className="p-2 border capitalize">{q.type}</td>
                                                 <td className="p-2 border max-w-[400px]">
-                                                    <span className="line-clamp-2">{q.questionText}</span>
+                                                    <span className="line-clamp-2">{q.question_text}</span>
                                                 </td>
                                                 <td className="p-2 border text-center">
                                                     <button
@@ -829,9 +829,9 @@ export function TeacherDashboard() {
 
                             <textarea
                                 className="border p-2 rounded w-full"
-                                value={editData.questionText}
+                                value={editData.question_text}
                                 onChange={(e) =>
-                                    setEditData({ ...editData, questionText: e.target.value })
+                                    setEditData({ ...editData, question_text: e.target.value })
                                 }
                                 placeholder="Question Text"
                                 rows={4}
