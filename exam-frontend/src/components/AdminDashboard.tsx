@@ -141,6 +141,11 @@ export function AdminDashboard() {
           setView("list");
           loadExams();
         }}
+        onSaved={() => {
+          setSelectedExam(null);
+          setView("list");
+          loadExams();
+        }}
       />
     );
   }

@@ -62,6 +62,7 @@ func main() {
 		{
 			admin.GET("/exams", controllers.GetExams)
 			admin.POST("/exams", controllers.CreateExam)
+			admin.GET("/exams/:id", controllers.AdminGetExam)
 			admin.DELETE("/exams/:id", controllers.DeleteExam)
 
 			// ✅ CHANGED: Use UpdateExam (Metadata only) instead of UpdateExamWithQuestions

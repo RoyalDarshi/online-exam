@@ -102,6 +102,74 @@ func GetExams(c *gin.Context) {
 	c.JSON(http.StatusOK, exams)
 }
 
+func AdminGetExam(c *gin.Context) {
+	id := c.Param("id")
+
+	var exam models.Exam
+	err := database.DB.
+		Preload("Questions", func(db *gorm.DB) *gorm.DB {
+			return db.Order("order_number asc")
+		}).
+		First(&exam, "id = ?", id).Error
+
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Exam not found"})
+		return
+	}
+
+	// count questions
+	easy := 0
+	medium := 0
+	hard := 0
+	for _, q := range exam.Questions {
+		switch q.Complexity {
+		case "easy":
+			easy++
+		case "medium":
+			medium++
+		case "hard":
+			hard++
+		}
+	}
+
+	response := gin.H{
+		"id":               exam.ID,
+		"title":            exam.Title,
+		"description":      exam.Description,
+		"duration_minutes": exam.DurationMinutes,
+		"passing_score":    exam.PassingScore,
+		"is_active":        exam.IsActive,
+		"start_time":       exam.StartTime,
+		"end_time":         exam.EndTime,
+		"created_by":       exam.CreatedByID,
+		"created_at":       exam.CreatedAt,
+
+		"points_config": gin.H{
+			"easy":   1,
+			"medium": 2,
+			"hard":   5,
+		},
+
+		"negative_config": gin.H{
+			"easy":   exam.NegativeMarkEasy,
+			"medium": exam.NegativeMarkMedium,
+			"hard":   exam.NegativeMarkHard,
+		},
+
+		"enable_negative_marking": exam.EnableNegativeMarking,
+
+		"easy_count":   easy,
+		"medium_count": medium,
+		"hard_count":   hard,
+
+		"total_questions": easy + medium + hard,
+
+		"questions": exam.Questions,
+	}
+
+	c.JSON(200, response)
+}
+
 // Get exam details (with questions)
 func GetExamDetails(c *gin.Context) {
 	id := c.Param("id")
