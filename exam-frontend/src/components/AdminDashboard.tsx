@@ -12,11 +12,9 @@ import {
   LogOut,
 } from "lucide-react";
 
-import { CreateExam } from "./CreateExam";
 import { EditExam } from "./EditExam";
 import { ExamResults } from "./ExamResults";
 import { AdminExamCalendar } from "./AdminExamCalendar";
-import { QuestionBankManager } from "./QuestionBankManager"; // NEW MANAGER
 import { CreateExamFromBank } from "./CreateExamFromBank";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -65,9 +63,6 @@ export function AdminDashboard() {
   // VIEW SWITCHING
   // ===========================
 
-  if (view === "bank") {
-    return <QuestionBankManager onBack={() => setView("list")} />;
-  }
 
   if (view === "calendar") {
     return (
@@ -83,18 +78,6 @@ export function AdminDashboard() {
           setView("list");
           loadExams();
         }}
-      />
-    );
-  }
-
-  if (view === "create") {
-    return (
-      <CreateExam
-        onComplete={() => {
-          setView("list");
-          loadExams();
-        }}
-        onCancel={() => setView("list")}
       />
     );
   }
@@ -139,13 +122,6 @@ export function AdminDashboard() {
           </h1>
 
           <div className="flex gap-3">
-            <button
-              onClick={() => setView("bank")}
-              className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition"
-            >
-              <Database className="w-5 h-5" />
-              Question Bank
-            </button>
 
             <button
               onClick={() => setView("calendar")}
@@ -157,19 +133,12 @@ export function AdminDashboard() {
 
             <button
               onClick={() => setView("generator")}
-              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
-            >
-              <Database className="w-5 h-5" />
-              Generate from Bank
-            </button>
-
-            <button
-              onClick={() => setView("create")}
               className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
             >
               <Plus className="w-5 h-5" />
               Create Exam
             </button>
+
             <button
               onClick={signOut}
               className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium"
