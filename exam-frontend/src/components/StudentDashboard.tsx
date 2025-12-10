@@ -80,8 +80,13 @@ export function StudentDashboard() {
         exam={selectedExam}
         onComplete={handleExamComplete}
         onCancel={handleExamCancel}
-        reviewMode={false}
+        candidate={{
+          name: user?.full_name || "",
+          candidateId: user?.id || "",
+          center: 'Center 01 - Kolkata',
+        }}
       />
+
     );
   }
 
