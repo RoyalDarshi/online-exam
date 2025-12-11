@@ -1,4 +1,3 @@
-// launcher.go
 package main
 
 import (
@@ -10,52 +9,69 @@ import (
 )
 
 func main() {
-	// path to ExamGuard.exe (adjust if you put elsewhere)
-	procPath := "../examguard/ExamGuard.exe"
+	// IMPORTANT — USE FULL ABSOLUTE PATH
+	procPath := "C:\\Curat-React\\online-exam\\exam-guard\\examguard\\ExamGuard.exe"
 
-	// exam URL to open in kiosk
-	examURL := "https://localhost:5173" // <--- REPLACE with real URL
-
-	// optional: browser preference: "chrome" or "edge"
+	examURL := "http://localhost:5173"
 	browserPref := "chrome"
 
-	// Start ExamGuard (detached)
+	fmt.Println("Starting ExamGuard from:", procPath)
+
 	cmd := exec.Command(procPath)
-	if err := cmd.Start(); err != nil {
-		fmt.Println("failed to start ExamGuard.exe:", err)
-		return
-	}
-	fmt.Println("ExamGuard started, pid:", cmd.Process.Pid)
-
-	// wait a bit for server to come up
-	time.Sleep(1500 * time.Millisecond)
-
-	// call start-exam endpoint
-	startURL := "" + urlEncode(examURL) + "&browser=" + browserPref
-	resp, err := http.Post(startURL, "application/json", nil)
+	err := cmd.Start()
 	if err != nil {
-		fmt.Println("failed to call start-exam:", err)
+		fmt.Println("ERROR: Cannot start ExamGuard.exe")
+		fmt.Println("Go error:", err)
+		time.Sleep(5 * time.Second)
 		return
 	}
-	defer resp.Body.Close()
-	fmt.Println("start-exam called, status:", resp.Status)
-	// launcher can exit now
+	fmt.Println("ExamGuard started PID:", cmd.Process.Pid)
+
+	// wait for server
+	if !waitForServer() {
+		fmt.Println("ERROR: ExamGuard server never responded!")
+		time.Sleep(5 * time.Second)
+		return
+	}
+
+	// Start browser
+	url := fmt.Sprintf(
+		"http://localhost:12345/start-exam?url=%s&browser=%s",
+		urlEncode(examURL),
+		browserPref,
+	)
+
+	fmt.Println("Calling:", url)
+
+	resp, err := http.Post(url, "application/json", nil)
+	if err != nil {
+		fmt.Println("ERROR calling /start-exam:", err)
+		time.Sleep(5 * time.Second)
+		return
+	}
+
+	fmt.Println("Browser launch request sent. Status:", resp.Status)
+	time.Sleep(5 * time.Second)
 }
+
+func waitForServer() bool {
+	for i := 0; i < 20; i++ {
+		_, err := http.Get("http://localhost:12345/check")
+		if err == nil {
+			return true
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	return false
+}
+
 func urlEncode(s string) string {
-	return (&urlValue{v: s}).Encode()
-}
-
-// small helper to avoid importing net/url for single encode
-type urlValue struct{ v string }
-
-func (u *urlValue) Encode() string {
-	// minimal encode for : / ?
-	s := u.v
-	s = strings.ReplaceAll(s, " ", "%20")
-	s = strings.ReplaceAll(s, ":", "%3A")
-	s = strings.ReplaceAll(s, "/", "%2F")
-	s = strings.ReplaceAll(s, "?", "%3F")
-	s = strings.ReplaceAll(s, "&", "%26")
-	s = strings.ReplaceAll(s, "=", "%3D")
+	r := strings.ReplaceAll
+	s = r(s, " ", "%20")
+	s = r(s, ":", "%3A")
+	s = r(s, "/", "%2F")
+	s = r(s, "?", "%3F")
+	s = r(s, "&", "%26")
+	s = r(s, "=", "%3D")
 	return s
 }
