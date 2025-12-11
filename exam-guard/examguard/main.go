@@ -1,4 +1,11 @@
-// main.go  (OS-SAFE Mode)
+// ---------------------------
+// ExamGuard (OS-SAFE + MAX SECURITY)
+// Strong ESC + F11 blocking
+// Chrome keyboard-shortcut disabling
+// Raw-input + low-level hook
+// Auto lockdown every 5 seconds
+// ---------------------------
+
 package main
 
 import (
@@ -25,20 +32,19 @@ type ScanResult struct {
 	Killed  []string `json:"killed"`
 }
 
+// Logging
 var (
-	// Logging paths
 	logDir  = `C:\ExamGuard\logs`
 	logFile = filepath.Join(logDir, "lockdown.log")
-
-	// Shutdown flag for graceful stop
-	shuttingDown int32 = 0
-
-	// Our self PID - always allowed
-	selfPID = os.Getpid()
 )
 
-// ------------------ Allow lists (supportive but not primary) ------------------
-// These are kept for quick checks but we rely primarily on OS detection logic.
+// Graceful shutdown
+var shuttingDown int32 = 0
+
+// Self-PID to avoid killing ExamGuard
+var selfPID = os.Getpid()
+
+// Allowed apps (do not kill)
 var allowedApps = map[string]bool{
 	"examguard.exe": true,
 	"main.exe":      true,
@@ -46,7 +52,7 @@ var allowedApps = map[string]bool{
 	"msedge.exe":    true,
 }
 
-// Shell/UI that we want to keep (explorer kept by default in Mode 1)
+// Windows Shell processes (must not kill)
 var shellProcesses = map[string]bool{
 	"explorer.exe":                true,
 	"sihost.exe":                  true,
@@ -59,7 +65,6 @@ var shellProcesses = map[string]bool{
 	"lockapp.exe":                 true,
 	"textinputhost.exe":           true,
 	"backgroundtaskhost.exe":      true,
-	"aggregatorhost.exe":          true,
 	"widgetboard.exe":             true,
 	"widgetservice.exe":           true,
 	"useroobebroker.exe":          true,
@@ -70,115 +75,7 @@ var shellProcesses = map[string]bool{
 	"smartscreen.exe":             true,
 }
 
-// ------------------ Windows API / keyboard hook (best-effort) ------------------
-var (
-	user32              = syscall.NewLazyDLL("user32.dll")
-	setWindowsHookEx    = user32.NewProc("SetWindowsHookExW")
-	callNextHookEx      = user32.NewProc("CallNextHookEx")
-	getMessage          = user32.NewProc("GetMessageW")
-	getAsyncKeyStatePtr = user32.NewProc("GetAsyncKeyState")
-)
-
-const (
-	WH_KEYBOARD_LL = 13
-
-	WM_KEYDOWN    = 0x0100
-	WM_SYSKEYDOWN = 0x0104
-
-	VK_ESCAPE = 0x1B
-	VK_F11    = 0x7A
-	VK_F4     = 0x73
-	VK_TAB    = 0x09
-
-	VK_LWIN = 0x5B
-	VK_RWIN = 0x5C
-	VK_APPS = 0x5D
-
-	VK_MENU    = 0x12 // Alt
-	VK_CONTROL = 0x11 // Ctrl
-)
-
-type KBDLLHOOKSTRUCT struct {
-	VkCode    uint32
-	ScanCode  uint32
-	Flags     uint32
-	Time      uint32
-	ExtraInfo uintptr
-}
-
-type POINT struct{ X, Y int32 }
-type MSG struct {
-	Hwnd    uintptr
-	Message uint32
-	WParam  uintptr
-	LParam  uintptr
-	Time    uint32
-	Pt      POINT
-}
-
-// getAsyncKeyState returns true if key is down (best-effort)
-func getAsyncKeyState(vk int) bool {
-	ret, _, _ := getAsyncKeyStatePtr.Call(uintptr(vk))
-	return (int32(ret) & 0x8000) != 0
-}
-
-func keyboardHook(nCode int, wParam uintptr, lParam uintptr) uintptr {
-	if nCode == 0 && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) {
-		kb := (*KBDLLHOOKSTRUCT)(unsafe.Pointer(lParam))
-		vk := int(kb.VkCode)
-
-		altDown := getAsyncKeyState(VK_MENU)
-		winDown := getAsyncKeyState(VK_LWIN) || getAsyncKeyState(VK_RWIN)
-
-		// Block common disruptive keys/combinations (best-effort from user-mode)
-		switch vk {
-		case VK_ESCAPE:
-			return 1
-		case VK_F11:
-			return 1
-		case VK_APPS:
-			return 1
-		case VK_LWIN, VK_RWIN:
-			return 1
-		case VK_F4:
-			// block Alt+F4 and block F4 generally as a safety measure
-			if altDown || true {
-				return 1
-			}
-		case VK_TAB:
-			// block Alt+Tab and Win+Tab by blocking Tab when Alt or Win is down
-			if altDown || winDown {
-				return 1
-			}
-		}
-	}
-	ret, _, _ := callNextHookEx.Call(0, uintptr(nCode), wParam, lParam)
-	return ret
-}
-
-func startKeyboardBlocker() {
-	runtime.LockOSThread()
-	cb := syscall.NewCallback(keyboardHook)
-	h, _, err := setWindowsHookEx.Call(
-		uintptr(WH_KEYBOARD_LL),
-		cb,
-		0,
-		0,
-	)
-	if h == 0 {
-		log("keyboard hook failed: %v", err)
-		return
-	}
-	var msg MSG
-	for {
-		ret, _, _ := getMessage.Call(uintptr(unsafe.Pointer(&msg)), 0, 0, 0)
-		if int32(ret) <= 0 {
-			break
-		}
-	}
-}
-
-// ------------------ Logging ------------------
+// ---------------- Logging ----------------
 
 func ensureLogDir() {
 	_ = os.MkdirAll(logDir, 0o755)
@@ -188,7 +85,6 @@ func log(format string, args ...interface{}) {
 	ensureLogDir()
 	f, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
-		// fallback to stdout
 		fmt.Printf(format+"\n", args...)
 		return
 	}
@@ -198,147 +94,101 @@ func log(format string, args ...interface{}) {
 	_, _ = f.WriteString(line)
 }
 
-// ------------------ Utilities for OS-safe checks ------------------
+// ------------- PROCESS SAFETY CHECKS ----------------
 
-// isSystemAccount returns true for common Windows service accounts
 func isSystemAccount(user string) bool {
 	u := strings.ToLower(user)
-	return strings.Contains(u, "system") || strings.Contains(u, "local service") || strings.Contains(u, "network service") || strings.Contains(u, "nt authority")
+	return strings.Contains(u, "system") ||
+		strings.Contains(u, "local service") ||
+		strings.Contains(u, "network service") ||
+		strings.Contains(u, "nt authority")
 }
 
-// exeInWindowsDir returns true if the exe path starts with C:\Windows (case-insensitive)
 func exeInWindowsDir(exePath string) bool {
 	if exePath == "" {
 		return false
 	}
-	p := strings.ToLower(exePath)
-	// normalize paths
-	p = filepath.Clean(p)
+	p := strings.ToLower(filepath.Clean(exePath))
 	return strings.HasPrefix(p, strings.ToLower(`c:\windows`))
 }
 
-// isAllowedProcess performs OS-safe checks to decide whether a process is safe to leave running.
 func isAllowedProcess(p *process.Process) bool {
-	// Always allow our own PID (ExamGuard) to avoid self-kill
 	if int(p.Pid) == selfPID {
 		return true
 	}
 
-	// try to get name & exe & username; if any call errors, be conservative (allow)
-	name, errName := p.Name()
-	exePath, errExe := p.Exe()
-	userName, errUser := p.Username()
+	name, err1 := p.Name()
+	exe, err2 := p.Exe()
+	user, err3 := p.Username()
 
-	// if any of the calls failed unexpectedly, allow that process (fail-safe)
-	if errName != nil || errExe != nil || errUser != nil {
-		// some short-lived system procs or protected procs may error; allow them
+	if err1 != nil || err2 != nil || err3 != nil {
 		return true
 	}
 
-	nameLower := strings.ToLower(name)
-	exeLower := strings.ToLower(exePath)
-	userLower := strings.ToLower(userName)
+	n := strings.ToLower(name)
+	e := strings.ToLower(exe)
+	u := strings.ToLower(user)
 
-	// Always allow known shell processes (keeps the desktop stable)
-	if shellProcesses[nameLower] {
+	if shellProcesses[n] {
 		return true
 	}
 
-	// If this process runs from C:\Windows (or System32), never kill it
-	if exeInWindowsDir(exeLower) {
+	if exeInWindowsDir(e) {
 		return true
 	}
 
-	// If process is running under a system/service account, allow it
-	if isSystemAccount(userLower) {
+	if isSystemAccount(u) {
 		return true
 	}
 
-	// Allow processes that are explicitly allowed (browser & examguard)
-	if allowedApps[nameLower] {
+	if allowedApps[n] {
 		return true
 	}
 
-	// As an additional safe rule: allow processes that are children of services (status == "service")
-	// gopsutil does not directly report session id reliably cross-systems, but username check above handles services.
-
-	// By default: this is a user-level process (candidate for termination)
 	return false
 }
 
-// ------------------ Kill logic (OS-SAFE) ------------------
-
-// executeKillOnce scans processes and terminates unsafe user-level processes.
 func executeKillOnce() ScanResult {
 	procs, err := process.Processes()
 	res := ScanResult{Success: true}
 	if err != nil {
 		res.Success = false
-		res.Message = "error listing processes: " + err.Error()
-		log("ERROR: %s", res.Message)
+		res.Message = err.Error()
+		log("ERROR: %s", err)
 		return res
 	}
 
 	for _, p := range procs {
-		// stop if we are shutting down
 		if atomic.LoadInt32(&shuttingDown) == 1 {
 			break
 		}
 
-		// skip ourselves
 		if int(p.Pid) == selfPID {
 			continue
 		}
 
-		// safe-check
-		allowed := isAllowedProcess(p)
-		if allowed {
+		if isAllowedProcess(p) {
 			continue
 		}
 
-		// Now we will terminate this process (best-effort)
-		// kill children first (best-effort)
 		children, _ := p.Children()
 		for _, c := range children {
-			_ = c.Terminate()
-			_ = c.Kill()
-			log("killed child %s (parent %s pid=%d)", childDesc(c), childDesc(p))
+			c.Terminate()
+			c.Kill()
+			log("killed child %d", c.Pid)
 		}
 
-		// terminate parent
-		_ = p.Terminate()
-		_ = p.Kill()
+		p.Terminate()
+		p.Kill()
 
-		// record name
-		n, _ := p.Name()
-		res.Killed = append(res.Killed, n)
-		log("killed %s (pid=%d exe=%s user=%s)", n, p.Pid, tryExe(p), tryUser(p))
+		name, _ := p.Name()
+		res.Killed = append(res.Killed, name)
+		log("killed %s (pid=%d)", name, p.Pid)
 	}
 
-	res.Message = "OS-safe kill executed"
 	return res
 }
 
-func childDesc(p *process.Process) string {
-	n, _ := p.Name()
-	return fmt.Sprintf("%s[%d]", n, p.Pid)
-}
-
-func tryExe(p *process.Process) string {
-	if e, err := p.Exe(); err == nil {
-		return e
-	}
-	return "<exe?>"
-}
-
-func tryUser(p *process.Process) string {
-	if u, err := p.Username(); err == nil {
-		return u
-	}
-	return "<user?>"
-}
-
-// autoLockdown runs executeKillOnce every interval until shutdown
 func autoLockdown(interval time.Duration) {
 	t := time.NewTicker(interval)
 	defer t.Stop()
@@ -353,197 +203,320 @@ func autoLockdown(interval time.Duration) {
 					log("panic in autoLockdown: %v", r)
 				}
 			}()
-			_ = executeKillOnce()
+			executeKillOnce()
 		}()
 	}
 }
 
-// ------------------ Kiosk launcher helpers ------------------
+// ---------------- KEYBOARD BLOCKING: RAW INPUT + LOW-LEVEL HOOK ------------------
 
-var commonBrowserPaths = []string{
-	`C:\Program Files\Google\Chrome\Application\chrome.exe`,
-	`C:\Program Files (x86)\Google\Chrome\Application\chrome.exe`,
-	`C:\Program Files\Microsoft\Edge\Application\msedge.exe`,
-	`C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`,
+var (
+	user32DLL               = syscall.NewLazyDLL("user32.dll")
+	setWindowsHookEx        = user32DLL.NewProc("SetWindowsHookExW")
+	callNextHookEx          = user32DLL.NewProc("CallNextHookEx")
+	getMessage              = user32DLL.NewProc("GetMessageW")
+	getAsyncKeyStateProc    = user32DLL.NewProc("GetAsyncKeyState")
+	registerRawInputDevices = user32DLL.NewProc("RegisterRawInputDevices")
+	getRawInputData         = user32DLL.NewProc("GetRawInputData")
+	blockInputProc          = user32DLL.NewProc("BlockInput")
+)
+
+const (
+	WH_KEYBOARD_LL = 13
+	WM_KEYDOWN     = 0x0100
+	WM_SYSKEYDOWN  = 0x0104
+	WM_INPUT       = 0x00FF
+
+	VK_ESCAPE = 0x1B
+	VK_F11    = 0x7A
+	VK_F4     = 0x73
+	VK_LWIN   = 0x5B
+	VK_RWIN   = 0x5C
+	VK_APPS   = 0x5D
+)
+
+type KBDLLHOOKSTRUCT struct {
+	VkCode uint32
 }
 
-func findBrowserPath(prefer string) string {
-	if strings.Contains(strings.ToLower(prefer), "edge") {
-		for _, p := range commonBrowserPaths {
-			if strings.Contains(strings.ToLower(p), "msedge") {
-				if _, err := os.Stat(p); err == nil {
-					return p
-				}
-			}
-		}
+type MSG struct {
+	Hwnd    uintptr
+	Message uint32
+	WParam  uintptr
+	LParam  uintptr
+}
+
+type RAWINPUTDEVICE struct {
+	UsagePage uint16
+	Usage     uint16
+	Flags     uint32
+	Target    uintptr
+}
+
+type RAWINPUTHEADER struct {
+	Type uint32
+	Size uint32
+	Hwnd uintptr
+}
+
+type RAWKEYBOARD struct {
+	MakeCode uint16
+	Flags    uint16
+	Reserved uint16
+	VKey     uint16
+	Message  uint32
+	Extra    uint32
+}
+
+type RAWINPUT struct {
+	Header RAWINPUTHEADER
+	Data   RAWKEYBOARD
+}
+
+func blockInput(enable bool) {
+	if enable {
+		blockInputProc.Call(1)
 	} else {
-		for _, p := range commonBrowserPaths {
-			if strings.Contains(strings.ToLower(p), "chrome") {
-				if _, err := os.Stat(p); err == nil {
-					return p
-				}
-			}
+		blockInputProc.Call(0)
+	}
+}
+
+// strongest possible user-mode ESC/F11 block:
+func shouldBlockKey(k uint16) bool {
+	return k == VK_ESCAPE || k == VK_F11 || k == VK_LWIN || k == VK_RWIN || k == VK_APPS || k == VK_F4
+}
+
+// ---------- RAW INPUT BLOCKER ----------
+
+func startRawInputBlocker() {
+	runtime.LockOSThread()
+
+	rid := RAWINPUTDEVICE{
+		UsagePage: 1,
+		Usage:     6,          // keyboard
+		Flags:     0x00000100, // RIDEV_INPUTSINK
+		Target:    0,
+	}
+
+	registerRawInputDevices.Call(
+		uintptr(unsafe.Pointer(&rid)),
+		1,
+		unsafe.Sizeof(rid),
+	)
+
+	var msg MSG
+
+	for {
+		ret, _, _ := getMessage.Call(uintptr(unsafe.Pointer(&msg)), 0, 0, 0)
+		if int32(ret) <= 0 {
+			continue
+		}
+
+		if msg.Message != WM_INPUT {
+			continue
+		}
+
+		var raw RAWINPUT
+		size := uint32(unsafe.Sizeof(raw))
+
+		getRawInputData.Call(
+			msg.LParam,
+			0x10000003, // RID_INPUT
+			uintptr(unsafe.Pointer(&raw)),
+			uintptr(unsafe.Pointer(&size)),
+			uintptr(unsafe.Sizeof(raw.Header)),
+		)
+
+		vk := raw.Data.VKey
+		sc := raw.Data.MakeCode // ESC scancode = 1
+
+		if vk == VK_ESCAPE || sc == 1 || shouldBlockKey(vk) {
+			blockInput(true)
+			time.Sleep(25 * time.Millisecond)
+			blockInput(false)
+			continue
 		}
 	}
-	for _, p := range commonBrowserPaths {
+}
+
+// ---------- LOW-LEVEL HOOK (backup) ----------
+
+func lowLevelHook(nCode int, wParam uintptr, lParam uintptr) uintptr {
+	if nCode == 0 {
+		kb := (*KBDLLHOOKSTRUCT)(unsafe.Pointer(lParam))
+		if shouldBlockKey(uint16(kb.VkCode)) {
+			return 1
+		}
+	}
+	ret, _, _ := callNextHookEx.Call(0, uintptr(nCode), wParam, lParam)
+	return ret
+}
+
+func startLowLevelHook() {
+	runtime.LockOSThread()
+	cb := syscall.NewCallback(lowLevelHook)
+
+	h, _, _ := setWindowsHookEx.Call(
+		uintptr(WH_KEYBOARD_LL),
+		cb,
+		0,
+		0,
+	)
+
+	if h == 0 {
+		log("LOW LEVEL HOOK FAILED")
+		return
+	}
+
+	var msg MSG
+	for {
+		getMessage.Call(uintptr(unsafe.Pointer(&msg)), 0, 0, 0)
+	}
+}
+
+// Combined blocker
+func startKeyboardBlockers() {
+	go startRawInputBlocker()
+	go startLowLevelHook()
+}
+
+// ---------------- CHROME KIOSK MODE (MAX SHORTCUT DISABLE) -------------------
+
+var browserPaths = []string{
+	`C:\Program Files\Google\Chrome\Application\chrome.exe`,
+	`C:\Program Files (x86)\Google\Chrome\Application\chrome.exe`,
+}
+
+func findChrome() string {
+	for _, p := range browserPaths {
 		if _, err := os.Stat(p); err == nil {
 			return p
 		}
 	}
-	return prefer
+	return "chrome"
 }
 
-func launchKiosk(prefer, url string) (*exec.Cmd, error) {
-	path := findBrowserPath(prefer)
+func launchKiosk(url string) (*exec.Cmd, error) {
+	path := findChrome()
+
 	args := []string{
+		"--app=" + url, // MUST be first
 		"--kiosk",
-		"--no-first-run",
-		"--disable-extensions",
-		"--disable-popup-blocking",
 		"--incognito",
-		"--no-default-browser-check",
+		"--no-first-run",
+		"--disable-infobars",
+		"--disable-session-crashed-bubble",
+
+		// 100% remove fullscreen exit UI
+		"--disable-features=FullscreenToolbar,FullscreenExitUI,ExclusiveAccessBubbleUseShorterDelay",
+
+		// Force Chrome window to not behave like a tab fullscreen
+		"--window-size=1920,1080",
+		"--window-position=-32000,-32000", // Forces Chrome into true app window mode
+
+		"--disable-overlay-scrollbar",
+		"--hide-scrollbars",
+		"--overscroll-history-navigation=0",
+
+		"--disable-features=FocusMode",
+		"--disable-features=HardwareMediaKeyHandling",
 		"--disable-background-networking",
-		"--disable-sync",
 		"--disable-translate",
-		url,
+		"--disable-sync",
+		"--disable-popup-blocking",
+
+		// Disable ALL Chrome shortcuts internally
+		"--ash-disable-keyboard-shortcuts",
+
+		// Force app window behavior
+		"--enable-features=AppRuntimeLauncher",
 	}
+
 	cmd := exec.Command(path, args...)
+
 	if err := cmd.Start(); err != nil {
-		// fallback to command name
-		if strings.Contains(strings.ToLower(prefer), "edge") {
-			cmd = exec.Command("msedge", args...)
-		} else {
-			cmd = exec.Command("chrome", args...)
-		}
-		if err2 := cmd.Start(); err2 != nil {
-			log("failed to start kiosk: %v / %v", err, err2)
-			return nil, err2
-		}
+		return nil, err
 	}
-	log("launched kiosk %s pid=%d", path, cmd.Process.Pid)
+
+	log("KIOSK Chrome started pid=%d", cmd.Process.Pid)
 	return cmd, nil
 }
 
-// ------------------ HTTP handlers ------------------
+// ------------------ HTTP HANDLERS -------------------
 
 func handleCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{
+	json.NewEncoder(w).Encode(map[string]any{
 		"active": true,
-		"time":   time.Now().Format(time.RFC3339),
 	})
 }
 
-func handleEnv(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"vm_detected": detectVM(),
-		"time":        time.Now().Format(time.RFC3339),
-	})
-}
-
-func handleScanAndKill(w http.ResponseWriter, r *http.Request) {
+func handleScan(w http.ResponseWriter, r *http.Request) {
 	res := executeKillOnce()
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(res)
+	json.NewEncoder(w).Encode(res)
 }
 
 func handleStartExam(w http.ResponseWriter, r *http.Request) {
 	if atomic.LoadInt32(&shuttingDown) == 1 {
-		http.Error(w, "shutting down", http.StatusServiceUnavailable)
+		http.Error(w, "shutting down", 503)
 		return
-	}
-	q := r.URL.Query()
-	url := q.Get("url")
-	if url == "" {
-		http.Error(w, "missing url param", http.StatusBadRequest)
-		return
-	}
-	browser := q.Get("browser")
-	if browser == "" {
-		browser = "chrome"
-	}
-	// mark allowed for the session
-	if strings.Contains(strings.ToLower(browser), "edge") {
-		allowedApps["msedge.exe"] = true
-	} else {
-		allowedApps["chrome.exe"] = true
 	}
 
-	// quick cleanup before launching
-	_ = executeKillOnce()
-	cmd, err := launchKiosk(browser, url)
-	if err != nil {
-		http.Error(w, "failed to launch kiosk: "+err.Error(), http.StatusInternalServerError)
+	url := r.URL.Query().Get("url")
+	if url == "" {
+		http.Error(w, "missing url", 400)
 		return
 	}
-	pid := 0
-	if cmd != nil && cmd.Process != nil {
-		pid = cmd.Process.Pid
+
+	executeKillOnce()
+
+	cmd, err := launchKiosk(url)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"launched": true, "pid": pid})
+
+	json.NewEncoder(w).Encode(map[string]any{
+		"ok":  true,
+		"pid": cmd.Process.Pid,
+	})
 }
 
 func handleExit(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"closing": true})
+	json.NewEncoder(w).Encode(map[string]any{"closing": true})
 	go func() {
 		atomic.StoreInt32(&shuttingDown, 1)
-		time.Sleep(700 * time.Millisecond)
-		log("shutting down by request")
+		time.Sleep(300 * time.Millisecond)
 		os.Exit(0)
 	}()
 }
 
-// ------------------ VM detection ------------------
-
-func detectVM() bool {
-	out, err := exec.Command("wmic", "computersystem", "get", "model").Output()
-	if err != nil {
-		return false
-	}
-	s := strings.ToLower(string(out))
-	if strings.Contains(s, "virtual") ||
-		strings.Contains(s, "vmware") ||
-		strings.Contains(s, "qemu") ||
-		strings.Contains(s, "hyper-v") ||
-		strings.Contains(s, "virtualbox") {
-		return true
-	}
-	return false
-}
-
-// ------------------ main ------------------
+// ---------------- MAIN ----------------
 
 func main() {
 	ensureLogDir()
-	log("ExamGuard starting (OS-SAFE Mode). selfPID=%d", selfPID)
+	log("ExamGuard started (MAX SECURITY)")
 
-	// keyboard hook (best effort)
-	go startKeyboardBlocker()
+	// Start keyboard blocking
+	go startKeyboardBlockers()
 
-	// start auto lockdown every 5 seconds
+	// Start auto lockdown loop
 	go autoLockdown(5 * time.Second)
 
-	// HTTP endpoints
 	mux := http.NewServeMux()
 	mux.HandleFunc("/check", handleCheck)
-	mux.HandleFunc("/env", handleEnv)
-	mux.HandleFunc("/scan-and-kill", handleScanAndKill)
+	mux.HandleFunc("/scan", handleScan)
 	mux.HandleFunc("/start-exam", handleStartExam)
 	mux.HandleFunc("/exit", handleExit)
 
-	c := cors.New(cors.Options{
+	handler := cors.New(cors.Options{
 		AllowedOrigins: []string{"*"},
 		AllowedMethods: []string{"GET", "POST"},
-	})
+	}).Handler(mux)
 
-	addr := "localhost:12345"
-	log("listening on %s", addr)
-	fmt.Println("ExamGuard (OS-SAFE) listening on", addr)
-	if err := http.ListenAndServe(addr, c.Handler(mux)); err != nil {
-		log("ListenAndServe error: %v", err)
-		fmt.Println("Listen error:", err)
-	}
+	fmt.Println("ExamGuard running on http://localhost:12345")
+	log("HTTP server started on :12345")
+
+	http.ListenAndServe("localhost:12345", handler)
 }
