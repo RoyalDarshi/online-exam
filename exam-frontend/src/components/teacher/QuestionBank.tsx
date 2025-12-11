@@ -1,6 +1,6 @@
 // src/components/teacher/QuestionBank.tsx
 import React, { useState, useMemo } from "react";
-import { TeacherQuestion } from "../TeacherDashboard";
+import { TeacherQuestion } from "./TeacherDashboard";
 import api from "../../lib/api";
 import { EditQuestionModal } from "./EditQuestionModal";
 import {

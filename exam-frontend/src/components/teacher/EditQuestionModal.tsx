@@ -1,7 +1,7 @@
 // src/components/teacher/EditQuestionModal.tsx
 import React, { useState } from "react";
 import api from "../../lib/api";
-import { TeacherQuestion } from "../TeacherDashboard";
+import { TeacherQuestion } from "./TeacherDashboard";
 import { X, Save, Loader2, AlertCircle } from "lucide-react";
 
 type Props = {

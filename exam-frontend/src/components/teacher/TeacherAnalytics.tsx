@@ -1,6 +1,6 @@
 // src/components/teacher/TeacherAnalytics.tsx
 import React from "react";
-import { TeacherQuestion } from "../TeacherDashboard";
+import { TeacherQuestion } from "./TeacherDashboard";
 
 type Props = {
     questions: TeacherQuestion[];

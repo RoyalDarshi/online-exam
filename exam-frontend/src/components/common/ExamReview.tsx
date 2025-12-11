@@ -14,7 +14,7 @@ import {
     ChevronLeft,
     ChevronRight,
 } from "lucide-react";
-import { ExamAttempt } from "../types/models";
+import { ExamAttempt } from "../../types/models";
 
 type ExamReviewMode = "student" | "admin";
 

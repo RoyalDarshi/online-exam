@@ -11,7 +11,7 @@ import {
     ShieldAlert,
     ArrowRight,
 } from "lucide-react";
-import { Question } from "../types/models";
+import { Question } from "../../../types/models";
 
 type ModalProps = {
     isOpen: boolean;

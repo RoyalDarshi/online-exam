@@ -1,7 +1,7 @@
 // StudentDashboard.tsx — Dual Theme (Dark + Light L2 Premium)
-import React, { useState, useEffect } from "react";
-import api from "../lib/api";
-import { useAuth } from "../contexts/AuthContext";
+import React from "react";
+import api from "../../lib/api";
+import { useAuth } from "../../contexts/AuthContext";
 
 import {
   Clock,
@@ -9,11 +9,11 @@ import {
   List,
 } from "lucide-react";
 
-import { Exam, ExamAttempt } from "../types/models";
-import { ExamTaking } from "./ExamTaking";
-import { ExamPreview } from "./ExamPreview";
-import ExamReview from "./ExamReview";
-import StudentNavbar from "./student/StudentNavbar";
+import { Exam, ExamAttempt } from "../../types/models";
+import { ExamTaking } from "./exam/ExamTaking";
+import { ExamPreview } from "./exam/ExamPreview";
+import ExamReview from "../common/ExamReview";
+import StudentNavbar from "./StudentNavbar";
 import { StudentAttemptHistory } from "./StudentAttemptHistory";
 
 type View = "list" | "preview" | "taking" | "review" | "history";
@@ -21,14 +21,14 @@ type View = "list" | "preview" | "taking" | "review" | "history";
 export function StudentDashboard() {
   const { signOut, user } = useAuth();
 
-  const [exams, setExams] = useState<Exam[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [exams, setExams] = React.useState<Exam[]>([]);
+  const [loading, setLoading] = React.useState(true);
 
-  const [view, setView] = useState<View>("list");
-  const [selectedExam, setSelectedExam] = useState<Exam | null>(null);
-  const [reviewAttempt, setReviewAttempt] = useState<ExamAttempt | null>(null);
+  const [view, setView] = React.useState<View>("list");
+  const [selectedExam, setSelectedExam] = React.useState<Exam | null>(null);
+  const [reviewAttempt, setReviewAttempt] = React.useState<ExamAttempt | null>(null);
 
-  useEffect(() => {
+  React.useEffect(() => {
     loadExams();
   }, []);
 

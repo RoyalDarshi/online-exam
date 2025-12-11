@@ -1,7 +1,7 @@
 // src/components/Auth.tsx
 import React, { useState, useContext } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { ThemeContext } from '../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { ThemeContext } from '../../contexts/ThemeContext';
 import { LogIn, UserPlus, Sun, Moon, Loader2 } from 'lucide-react';
 
 export function Auth() {

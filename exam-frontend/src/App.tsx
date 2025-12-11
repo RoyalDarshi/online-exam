@@ -1,9 +1,9 @@
 import React from 'react';
 import { useAuth, AuthProvider } from './contexts/AuthContext';
-import { Auth } from './components/Auth';
-import { AdminDashboard } from './components/AdminDashboard';
-import { StudentDashboard } from './components/StudentDashboard';
-import { TeacherDashboard } from './components/TeacherDashboard';
+import { Auth } from './components/common/Auth';
+import { AdminDashboard } from './components/admin/AdminDashboard';
+import { StudentDashboard } from './components/student/StudentDashboard';
+import { TeacherDashboard } from './components/teacher/TeacherDashboard';
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -19,7 +19,7 @@ function AppContent() {
     );
   }
 
-  if (!user) {
+  if (user.role === undefined) {
     return <Auth />;
   }
   if (user.role === 'admin') {

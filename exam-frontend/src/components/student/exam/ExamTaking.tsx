@@ -27,12 +27,12 @@ import {
   Moon,
 } from "lucide-react";
 
-import { Exam, Question } from "../types/models";
-import { useExam, MAX_WARNINGS } from "../hooks/useExam";
+import { Exam, Question } from "../../../types/models";
+import { useExam, MAX_WARNINGS } from "../../../hooks/useExam";
 import ReviewAndSubmitModal from "./ReviewAndSubmitModal";
-import { requestFullScreen } from "../hooks/useProctoring";
-import { ThemeContext } from "../contexts/ThemeContext";
-import { useExamGuard } from "../hooks/useExamGuard";
+import { requestFullScreen } from "../../../hooks/useProctoring";
+import { ThemeContext } from "../../../contexts/ThemeContext";
+import { useExamGuard } from "../../../hooks/useExamGuard";
 
 type CandidateInfo = {
   name: string;

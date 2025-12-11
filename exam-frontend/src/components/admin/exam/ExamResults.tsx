@@ -1,6 +1,6 @@
 // src/components/ExamResults.tsx
 import React, { useState, useEffect } from "react";
-import api from "../lib/api";
+import api from "../../../lib/api";
 import {
   ArrowLeft,
   Loader2,
@@ -12,7 +12,7 @@ import {
   Eye,
   Search
 } from "lucide-react";
-import ExamReview from "./ExamReview";
+import ExamReview from "../../common/ExamReview";
 
 // ============================================================================
 // TYPES

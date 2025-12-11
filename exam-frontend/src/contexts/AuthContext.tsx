@@ -13,7 +13,7 @@ export type User = {
 };
 
 type AuthContextType = {
-  user: User | null;
+  user: User;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string, role: 'admin' | 'student' | 'teacher') => Promise<void>;
@@ -23,7 +23,7 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User>({} as User);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   function signOut() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    setUser(null);
+    setUser({} as User);
   }
 
   return (

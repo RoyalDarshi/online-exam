@@ -1,7 +1,7 @@
 // src/components/AdminDashboard.tsx
 import React, { useState, useEffect } from "react";
-import api from "../lib/api";
-import { useAuth } from "../contexts/AuthContext";
+import api from "../../lib/api";
+import { useAuth } from "../../contexts/AuthContext";
 
 import {
   Trash2,
@@ -17,11 +17,11 @@ import {
   Layers
 } from "lucide-react";
 
-import { EditExam } from "./EditExam";
-import { ExamResults } from "./ExamResults";
+import { EditExam } from "./exam/EditExam";
+import { ExamResults } from "./exam/ExamResults";
 import { AdminExamCalendar } from "./AdminExamCalendar";
-import { CreateExamFromBank } from "./CreateExamFromBank";
-import { AdminNavbar } from "./admin/AdminNavbar";
+import { CreateExamFromBank } from "./exam/CreateExamFromBank";
+import { AdminNavbar } from "./AdminNavbar";
 
 type FilterType = "all" | "live" | "upcoming" | "completed";
 

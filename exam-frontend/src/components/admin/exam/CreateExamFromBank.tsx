@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
-import api from "../lib/api";
-import { WizardHeader } from "./admin/wizard/WizardHeader";
-import { StepDesign } from "./admin/wizard/StepDesign";
-import { StepSchedule } from "./admin/wizard/StepSchedule";
+import api from "../../../lib/api";
+import { WizardHeader } from "../../admin/wizard/WizardHeader";
+import { StepDesign } from "../../admin/wizard/StepDesign";
+import { StepSchedule } from "../../admin/wizard/StepSchedule";
 import { AlertCircle } from "lucide-react";
 
 type Props = {

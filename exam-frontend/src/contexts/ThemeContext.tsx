@@ -9,7 +9,7 @@ export const ThemeContext = createContext({
 });
 
 export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
-    const [theme, setTheme] = useState<ThemeMode>("dark");
+    const [theme, setTheme] = useState<ThemeMode>("light");
 
     // Load saved preference
     useEffect(() => {

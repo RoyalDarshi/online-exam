@@ -9,11 +9,11 @@ import {
     ShieldAlert,
 } from "lucide-react";
 
-import StudentNavbar from "./student/StudentNavbar";
-import { useAuth } from "../contexts/AuthContext";
-import { Exam } from "../types/models";
-import { useExamGuard } from "../hooks/useExamGuard";
-import { useExamGuardLockdown } from "../hooks/useExamGuardLockdown";
+import StudentNavbar from "../StudentNavbar";
+import { useAuth } from "../../../contexts/AuthContext";
+import { Exam } from "../../../types/models";
+import { useExamGuard } from "../../../hooks/useExamGuard";
+import { useExamGuardLockdown } from "../../../hooks/useExamGuardLockdown";
 
 interface Props {
     exam: Exam;

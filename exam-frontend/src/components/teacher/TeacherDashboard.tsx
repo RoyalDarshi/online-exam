@@ -1,11 +1,11 @@
 // src/components/TeacherDashboard.tsx
 import React, { useEffect, useState } from "react";
-import api from "../lib/api";
-import { useAuth } from "../contexts/AuthContext";
-import { TeacherNavbar } from "./teacher/TeacherNavbar";
-import { QuestionBank } from "./teacher/QuestionBank";
-import { TeacherAnalytics } from "./teacher/TeacherAnalytics";
-import { UploadWizard } from "./teacher/UploadWizard";
+import api from "../../lib/api";
+import { useAuth } from "../../contexts/AuthContext";
+import { TeacherNavbar } from "./TeacherNavbar";
+import { QuestionBank } from "./QuestionBank";
+import { TeacherAnalytics } from "./TeacherAnalytics";
+import { UploadWizard } from "./UploadWizard";
 import { Loader2, Layers, BarChart3, UploadCloud } from "lucide-react";
 
 export type TeacherQuestion = {

@@ -9,8 +9,8 @@ import {
     XCircle,
     AlertTriangle
 } from "lucide-react";
-import api from "../lib/api";
-import { ExamAttempt } from "../types/models";
+import api from "../../lib/api";
+import { ExamAttempt } from "../../types/models";
 
 // ============================================================================
 // SUB-COMPONENT: ResultBadge
