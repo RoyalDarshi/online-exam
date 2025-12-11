@@ -6,11 +6,14 @@ import {
     PlayCircle,
     Info,
     AlertTriangle,
+    ShieldAlert,
 } from "lucide-react";
 
 import StudentNavbar from "./student/StudentNavbar";
 import { useAuth } from "../contexts/AuthContext";
 import { Exam } from "../types/models";
+import { useExamGuard } from "../hooks/useExamGuard";
+import { useExamGuardLockdown } from "../hooks/useExamGuardLockdown";
 
 interface Props {
     exam: Exam;
@@ -23,6 +26,11 @@ export function ExamPreview({ exam, onBack, onStart }: Props) {
 
     const [timeLeft, setTimeLeft] = useState<string>("");
     const [hasAcknowledged, setHasAcknowledged] = useState(false);
+
+    // ExamGuard status (polling true)
+    const examGuardActive = useExamGuard(true);
+    useExamGuardLockdown();
+
 
     const now = Date.now();
     const start = new Date(exam.start_time).getTime();
@@ -57,12 +65,14 @@ export function ExamPreview({ exam, onBack, onStart }: Props) {
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [exam.start_time]);
+    }, [exam.start_time]); // keep same as original
 
     const fmt = (s?: string) =>
         s ? new Date(s).toLocaleString() : "Not specified";
 
     const negativeEnabled = !!exam.enable_negative_marking;
+
+    const canStart = isActive && hasAcknowledged && examGuardActive;
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -82,12 +92,14 @@ export function ExamPreview({ exam, onBack, onStart }: Props) {
                     Back
                 </button>
 
-                {/* CLOSED STATE (same as before) */}
+                {/* CLOSED STATE */}
                 {isClosed && (
-                    <section className="
+                    <section
+                        className="
             p-8 rounded-2xl border shadow-sm text-center
             bg-white border-slate-200
-            dark:bg-slate-900 dark:border-slate-800">
+            dark:bg-slate-900 dark:border-slate-800"
+                    >
                         <AlertTriangle className="w-12 h-12 mx-auto text-red-500 mb-4" />
                         <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">
                             Exam Window Closed
@@ -106,11 +118,12 @@ export function ExamPreview({ exam, onBack, onStart }: Props) {
 
                 {/* ACTIVE + UPCOMING → SAME PREVIEW */}
                 {!isClosed && (
-                    <section className="
+                    <section
+                        className="
             p-6 md:p-7 rounded-2xl border shadow-sm
             bg-white border-slate-200
-            dark:bg-slate-900 dark:border-slate-800">
-
+            dark:bg-slate-900 dark:border-slate-800"
+                    >
                         {/* Header */}
                         <header className="mb-6 border-b border-slate-200 dark:border-slate-700 pb-3">
                             <h1 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
@@ -119,12 +132,48 @@ export function ExamPreview({ exam, onBack, onStart }: Props) {
                             </h1>
                         </header>
 
-                        {/* UPCOMING COUNTDOWN (TCS style) */}
+                        {/* ExamGuard status banner */}
+                        <div
+                            className={`
+                mb-4 p-3 rounded-xl border flex items-center gap-3 text-sm
+                ${examGuardActive
+                                    ? "bg-emerald-50 border-emerald-400 text-emerald-800 dark:bg-emerald-900/30 dark:border-emerald-500 dark:text-emerald-100"
+                                    : "bg-rose-50 border-rose-400 text-rose-800 dark:bg-rose-900/40 dark:border-rose-600 dark:text-rose-100"
+                                }
+              `}
+                        >
+                            <ShieldAlert className="w-5 h-5" />
+                            <div className="flex-1">
+                                {examGuardActive ? (
+                                    <>
+                                        <p className="font-semibold">ExamGuard is active.</p>
+                                        <p className="text-xs opacity-80">
+                                            Your system is secured. You can start the exam once the
+                                            exam window opens.
+                                        </p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <p className="font-semibold">
+                                            ExamGuard not detected on this system.
+                                        </p>
+                                        <p className="text-xs opacity-80">
+                                            Please start <b>ExamGuard.exe</b>. The exam can only be
+                                            started when ExamGuard is running.
+                                        </p>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* UPCOMING COUNTDOWN */}
                         {isUpcoming && (
-                            <div className="
+                            <div
+                                className="
                 mb-6 p-4 rounded-xl border text-center
                 bg-slate-50 border-slate-200
-                dark:bg-slate-800/50 dark:border-slate-700">
+                dark:bg-slate-800/50 dark:border-slate-700"
+                            >
                                 <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 tracking-wide uppercase">
                                     Exam starts in
                                 </p>
@@ -135,35 +184,55 @@ export function ExamPreview({ exam, onBack, onStart }: Props) {
                         )}
 
                         {/* Candidate details */}
-                        <div className="
+                        <div
+                            className="
                 mb-6 p-4 rounded-xl border
                 bg-slate-50 border-slate-200
-                dark:bg-slate-950/50 dark:border-slate-700">
+                dark:bg-slate-950/50 dark:border-slate-700"
+                        >
                             <div className="grid sm:grid-cols-2 gap-4 text-sm">
                                 <div>
-                                    <span className="block text-xs text-slate-500 dark:text-slate-400">Candidate Name</span>
-                                    <span className="font-medium text-slate-800 dark:text-slate-100">{user?.full_name}</span>
+                                    <span className="block text-xs text-slate-500 dark:text-slate-400">
+                                        Candidate Name
+                                    </span>
+                                    <span className="font-medium text-slate-800 dark:text-slate-100">
+                                        {user?.full_name}
+                                    </span>
                                 </div>
                                 <div>
-                                    <span className="block text-xs text-slate-500 dark:text-slate-400">Candidate ID</span>
-                                    <span className="font-medium text-slate-800 dark:text-slate-100">{user?.id}</span>
+                                    <span className="block text-xs text-slate-500 dark:text-slate-400">
+                                        Candidate ID
+                                    </span>
+                                    <span className="font-medium text-slate-800 dark:text-slate-100">
+                                        {user?.id}
+                                    </span>
                                 </div>
                                 <div>
-                                    <span className="block text-xs text-slate-500 dark:text-slate-400">Duration</span>
-                                    <span className="font-medium text-slate-800 dark:text-slate-100">{exam.duration_minutes} minutes</span>
+                                    <span className="block text-xs text-slate-500 dark:text-slate-400">
+                                        Duration
+                                    </span>
+                                    <span className="font-medium text-slate-800 dark:text-slate-100">
+                                        {exam.duration_minutes} minutes
+                                    </span>
                                 </div>
                                 <div>
-                                    <span className="block text-xs text-slate-500 dark:text-slate-400">Passing Score</span>
-                                    <span className="font-medium text-slate-800 dark:text-slate-100">{exam.passing_score}%</span>
+                                    <span className="block text-xs text-slate-500 dark:text-slate-400">
+                                        Passing Score
+                                    </span>
+                                    <span className="font-medium text-slate-800 dark:text-slate-100">
+                                        {exam.passing_score}%
+                                    </span>
                                 </div>
                             </div>
                         </div>
 
                         {/* Marking Scheme */}
-                        <div className="
+                        <div
+                            className="
                 mb-6 p-4 rounded-xl border
                 bg-white border-slate-200
-                dark:bg-slate-950/50 dark:border-slate-700">
+                dark:bg-slate-950/50 dark:border-slate-700"
+                        >
                             <h2 className="text-sm font-bold mb-3 text-slate-900 dark:text-slate-100 flex items-center gap-2">
                                 <Info className="w-4 h-4 text-sky-600 dark:text-sky-300" />
                                 Marking Scheme
@@ -171,22 +240,28 @@ export function ExamPreview({ exam, onBack, onStart }: Props) {
 
                             {negativeEnabled ? (
                                 <div className="text-sm text-slate-700 dark:text-slate-300 space-y-1">
-                                    <p>• Correct Answer: <b>+1</b></p>
+                                    <p>
+                                        • Correct Answer: <b>+1</b>
+                                    </p>
                                     <p>• Wrong (Easy): -{exam.negative_mark_easy}</p>
                                     <p>• Wrong (Medium): -{exam.negative_mark_medium}</p>
                                     <p>• Wrong (Hard): -{exam.negative_mark_hard}</p>
                                     <p>• Unattempted: 0</p>
                                 </div>
                             ) : (
-                                <p className="text-sm text-slate-600 dark:text-slate-400">Negative marking is disabled.</p>
+                                <p className="text-sm text-slate-600 dark:text-slate-400">
+                                    Negative marking is disabled.
+                                </p>
                             )}
                         </div>
 
                         {/* Instructions */}
-                        <div className="
+                        <div
+                            className="
                 mb-6 p-4 rounded-xl border
                 bg-white border-slate-200
-                dark:bg-slate-950/50 dark:border-slate-700">
+                dark:bg-slate-950/50 dark:border-slate-700"
+                        >
                             <h2 className="text-sm font-bold mb-3 text-slate-900 dark:text-slate-100 flex items-center gap-2">
                                 <AlertTriangle className="w-4 h-4 text-amber-500" />
                                 General Instructions
@@ -203,9 +278,11 @@ export function ExamPreview({ exam, onBack, onStart }: Props) {
                         </div>
 
                         {/* Declaration + Start */}
-                        <div className="
+                        <div
+                            className="
                 mt-4 pt-4 border-t border-slate-200 dark:border-slate-700
-                flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+                        >
                             <label className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
                                 <input
                                     type="checkbox"
@@ -213,13 +290,11 @@ export function ExamPreview({ exam, onBack, onStart }: Props) {
                                     checked={hasAcknowledged}
                                     onChange={(e) => setHasAcknowledged(e.target.checked)}
                                 />
-                                <span>
-                                    I have read and understood the instructions.
-                                </span>
+                                <span>I have read and understood the instructions.</span>
                             </label>
 
                             <button
-                                disabled={!isActive || !hasAcknowledged}
+                                disabled={!canStart}
                                 onClick={onStart}
                                 className={`
                   inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold
@@ -229,7 +304,7 @@ export function ExamPreview({ exam, onBack, onStart }: Props) {
                 `}
                             >
                                 <PlayCircle className="w-5 h-5" />
-                                Start Test
+                                {examGuardActive ? "Start Test" : "Start Test (ExamGuard Required)"}
                             </button>
                         </div>
                     </section>

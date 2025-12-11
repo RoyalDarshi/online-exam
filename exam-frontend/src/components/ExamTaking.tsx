@@ -32,6 +32,7 @@ import { useExam, MAX_WARNINGS } from "../hooks/useExam";
 import ReviewAndSubmitModal from "./ReviewAndSubmitModal";
 import { requestFullScreen } from "../hooks/useProctoring";
 import { ThemeContext } from "../contexts/ThemeContext";
+import { useExamGuard } from "../hooks/useExamGuard";
 
 type CandidateInfo = {
   name: string;
@@ -99,6 +100,9 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
 
   const [showSidebar, setShowSidebar] = React.useState(true);
   const { theme, toggleTheme } = useContext(ThemeContext);
+
+  // ExamGuard status during exam (polling every 5s)
+  const guardActive = useExamGuard(true);
 
   React.useEffect(() => {
     if (window.innerWidth < 1024) setShowSidebar(false);
@@ -380,8 +384,8 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
         </div>
       </div>
 
-      {/* Warning banner */}
-      {(!isFullScreen || warnings > 0) && (
+      {/* Warning banner (fullscreen + ExamGuard status) */}
+      {(!isFullScreen || warnings > 0 || !guardActive) && (
         <div className="bg-amber-50 border-b border-amber-400 text-amber-900 px-4 py-2 text-xs md:text-sm font-medium flex justify-between items-center z-20 dark:bg-slate-900 dark:border-amber-500 dark:text-amber-100">
           <div className="flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-amber-500 dark:text-amber-400" />
@@ -389,13 +393,19 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
               Warnings:{" "}
               <span className="font-semibold">{warnings}</span> / {MAX_WARNINGS}
             </span>
-            {!isFullScreen && (
+            {!guardActive && (
+              <span className="hidden sm:inline text-rose-700 font-semibold ml-2 dark:text-rose-200">
+                ExamGuard disconnected. Exam is paused until it reconnects.
+              </span>
+            )}
+            {!isFullScreen && guardActive && (
               <span className="hidden sm:inline text-rose-700 font-semibold ml-2 dark:text-rose-200">
                 Fullscreen is mandatory.
               </span>
             )}
           </div>
-          {!isFullScreen && (
+
+          {!isFullScreen && guardActive && (
             <button
               onClick={requestFullScreen}
               className="bg-sky-600 hover:bg-sky-500 text-white border border-sky-500 px-3 py-1 rounded text-xs font-semibold flex items-center gap-1"
@@ -410,8 +420,31 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
       <div className="flex flex-1 overflow-hidden">
         {/* MAIN AREA */}
         <main className="flex-1 flex flex-col h-full overflow-hidden relative">
-          {/* Blocker if fullscreen off */}
-          {!isFullScreen && (
+          {/* BLOCKER: ExamGuard disconnected */}
+          {!guardActive && (
+            <div className="absolute inset-0 z-50 bg-rose-950/80 backdrop-blur-sm flex flex-col items-center justify-center text-center p-4">
+              <div className="mb-5 flex items-center justify-center">
+                <div className="bg-rose-900/60 p-4 rounded-full border border-rose-500">
+                  <ShieldAlert className="w-10 h-10 text-rose-200" />
+                </div>
+              </div>
+              <h1 className="text-xl md:text-2xl font-bold text-rose-50 mb-2">
+                ExamGuard Disconnected
+              </h1>
+              <p className="text-rose-100 mb-4 max-w-md text-sm">
+                The secure exam environment has been lost. Please ensure{" "}
+                <b>ExamGuard.exe</b> is running on this system. The test will
+                remain paused until ExamGuard reconnects.
+              </p>
+              <p className="text-rose-200 text-xs opacity-80">
+                Once ExamGuard is running again, this screen will disappear and
+                you can continue the test.
+              </p>
+            </div>
+          )}
+
+          {/* BLOCKER: fullscreen off (only if ExamGuard is active) */}
+          {guardActive && !isFullScreen && (
             <div className="absolute inset-0 z-40 bg-slate-100/90 dark:bg-slate-950/95 backdrop-blur-sm flex flex-col items-center justify-center text-center p-4">
               <div className="mb-5 flex items-center justify-center">
                 <div className="bg-rose-100 p-4 rounded-full border border-rose-300 dark:bg-rose-900/60 dark:border-rose-700">
@@ -495,9 +528,7 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
                       }`}
                   >
                     <Flag
-                      className={`w-4 h-4 ${markedForReview.has(currentQ.id)
-                        ? "fill-violet-200"
-                        : ""
+                      className={`w-4 h-4 ${markedForReview.has(currentQ.id) ? "fill-violet-200" : ""
                         }`}
                     />
                     {markedForReview.has(currentQ.id)
@@ -525,8 +556,7 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
                           opt,
                           currentQ.type
                         );
-                        const isSingle =
-                          currentQ.type === "single-choice";
+                        const isSingle = currentQ.type === "single-choice";
 
                         const cardStyle = selected
                           ? `${typeColors.border} ${typeColors.light} shadow-sm`
@@ -679,8 +709,7 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
         {/* SIDEBAR PALETTE */}
         <aside
           className={`fixed inset-y-0 right-0 w-72 bg-white border-l border-slate-200 transform transition-transform duration-300 z-30 flex flex-col
-            ${showSidebar ? "translate-x-0" : "translate-x-full"
-            }
+            ${showSidebar ? "translate-x-0" : "translate-x-full"}
             lg:relative lg:translate-x-0 dark:bg-slate-950 dark:border-slate-800`}
         >
           <div className="h-14 px-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 dark:border-slate-800 dark:bg-slate-950/95">

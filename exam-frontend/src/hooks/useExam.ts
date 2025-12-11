@@ -340,6 +340,11 @@ export const useExam = (
                 document.exitFullscreen().catch(() => { });
             }
             onComplete();
+            await fetch("http://localhost:12345/exit", {
+                method: "POST"
+            });
+
+            alert("Exam Completed");
         } catch {
             setErrorMessage("Submission failed. Please check connection.");
             setStatus("active");
