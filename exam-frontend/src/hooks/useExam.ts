@@ -203,23 +203,41 @@ export const useExam = (
 
     // --- Save to backend ---
     const saveToBackend = useCallback(
-        async (currentAnswers: Record<string, string>) => {
-            if (!attemptId) return;
-            setSaveStatus("saving");
-            try {
-                await api.post("/progress", {
-                    attempt_id: attemptId,
-                    tab_switches: warningsRef.current,
-                    answers: currentAnswers,
-                    snapshot: "",
-                });
-                setSaveStatus("saved");
-            } catch {
-                setSaveStatus("error");
+    async (currentAnswers: Record<string, string>) => {
+        if (!attemptId) return;
+
+        let showSaving = true;
+
+        // Start a 1.5s timer to show "saving"
+        const timer = setTimeout(() => {
+            if (showSaving) {
+                setSaveStatus("saving");
             }
-        },
-        [attemptId]
-    );
+        }, 1000);
+
+        try {
+            // API call
+            await api.post("/progress", {
+                attempt_id: attemptId,
+                tab_switches: warningsRef.current,
+                answers: currentAnswers,
+                snapshot: "",
+            });
+
+            // API done → stop UI from setting saving
+            showSaving = false;
+            clearTimeout(timer);
+
+            setSaveStatus("saved"); // only appears if saving was shown OR after success
+        } catch (error) {
+            showSaving = false;
+            clearTimeout(timer);
+            setSaveStatus("error");
+        }
+    },
+    [attemptId]
+);
+
 
     // --- Periodic snapshot ---
     useEffect(() => {

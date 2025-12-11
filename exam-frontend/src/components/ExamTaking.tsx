@@ -418,9 +418,7 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
 
       {/* MAIN LAYOUT */}
       <div className="flex flex-1 overflow-hidden">
-        {/* MAIN AREA */}
-        <main className="flex-1 flex flex-col h-full overflow-hidden relative">
-          {/* BLOCKER: ExamGuard disconnected */}
+        {/* BLOCKER: ExamGuard disconnected */}
           {!guardActive && (
             <div className="absolute inset-0 z-50 bg-rose-950/80 backdrop-blur-sm flex flex-col items-center justify-center text-center p-4">
               <div className="mb-5 flex items-center justify-center">
@@ -466,15 +464,18 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
               </button>
             </div>
           )}
+        {/* MAIN AREA */}
+        <main className="flex-1 flex flex-col h-full overflow-hidden relative">
 
           {/* Question + options */}
           <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 bg-slate-50 dark:bg-slate-950">
             <div className="max-w-4xl mx-auto space-y-5">
               <div
-                className={`rounded-xl border bg-white border-slate-200 shadow-sm overflow-hidden dark:bg-slate-900/70 dark:border-slate-800 ${markedForReview.has(currentQ.id)
+                /*${markedForReview.has(currentQ.id)
                   ? "outline outline-2 outline-violet-400/80 dark:outline-violet-500/70"
                   : ""
-                  }`}
+                  }*/
+                className={`rounded-xl border bg-white border-slate-200 shadow-sm overflow-hidden dark:bg-slate-900/70 dark:border-slate-800`}
               >
                 {/* Question header */}
                 <div className="px-4 md:px-6 py-3 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 dark:border-slate-800 dark:bg-slate-950/80">
@@ -489,9 +490,9 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
                     </div>
                     <div className="flex flex-wrap items-center gap-2 text-[11px]">
                       <span
-                        className={`px-2 py-0.5 rounded-full font-semibold border ${currentQ.complexity === "Hard"
+                        className={`px-2 py-0.5 rounded-full font-semibold border ${currentQ.complexity === "hard"
                           ? "bg-rose-100 text-rose-700 border-rose-300 dark:bg-rose-950/50 dark:text-rose-200 dark:border-rose-700"
-                          : currentQ.complexity === "Medium"
+                          : currentQ.complexity === "medium"
                             ? "bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-700"
                             : "bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-700"
                           }`}
@@ -522,7 +523,7 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
 
                   <button
                     onClick={toggleMarkCurrent}
-                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs md:text-sm font-semibold border transition ${markedForReview.has(currentQ.id)
+                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs md:text-sm font-semibold border transition ${markedForReview.has(currentQ.id)
                       ? "bg-violet-600 border-violet-500 text-white dark:bg-violet-900/70 dark:border-violet-600 dark:text-violet-50"
                       : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                       }`}
