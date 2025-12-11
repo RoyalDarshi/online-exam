@@ -2,7 +2,6 @@
 
 export type Question = {
     id: string;
-    exam_id: string;
     type: 'single-choice' | 'multi-select' | 'true-false' | 'descriptive'; // NEW
     complexity: 'easy' | 'medium' | 'hard'; // NEW
     question_text: string;
@@ -10,9 +9,8 @@ export type Question = {
     option_b: string;
     option_c: string;
     option_d: string;
-    correct_answer: string;
-    points: number;
-    negative_points: number;
+    marks: number;
+    negative_marks: number;
     order_number: number;
 };
 

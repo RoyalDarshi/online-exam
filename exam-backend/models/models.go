@@ -34,11 +34,14 @@ type Exam struct {
 	StartTime time.Time `json:"start_time"`
 	EndTime   time.Time `json:"end_time"`
 
-	// --- NEGATIVE MARKING FIELDS (FLATTENED) ---
+	// Negative marking
 	EnableNegativeMarking bool    `json:"enable_negative_marking"`
 	NegativeMarkEasy      float64 `json:"negative_mark_easy"`
 	NegativeMarkMedium    float64 `json:"negative_mark_medium"`
 	NegativeMarkHard      float64 `json:"negative_mark_hard"`
+
+	// Optional: Section locking like TCS iON
+	SectionLocking bool `json:"section_locking"`
 
 	CreatedByID uuid.UUID  `json:"created_by"`
 	CreatedAt   time.Time  `json:"created_at"`
@@ -55,17 +58,17 @@ func (e *Exam) BeforeCreate(tx *gorm.DB) (err error) {
 type Question struct {
 	ID            uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 	ExamID        uuid.UUID `json:"exam_id"`
-	Type          string    `json:"type"` // NEW: "single-choice" or "multi-select"
+	Type          string    `json:"type"` // "single-choice" or "multi-select"
 	QuestionText  string    `json:"question_text"`
 	OptionA       string    `json:"option_a"`
 	OptionB       string    `json:"option_b"`
 	OptionC       string    `json:"option_c"`
 	OptionD       string    `json:"option_d"`
-	CorrectAnswer string    `json:"correct_answer"`
+	CorrectAnswer string    `json:"correct_answer"` // INTERNAL ONLY
 
-	Points         int     `json:"points"`          // Score for correct answer
-	NegativePoints float64 `json:"negative_points"` // Deduction for wrong answer (NEW)
-	Complexity     string  `json:"complexity"`      // "easy","medium","hard"
+	Points         int     `json:"points"`           // Score for correct answer (internal)
+	NegativePoints float64 `json:"negative_points"`  // Deduction for wrong answer (internal)
+	Complexity     string  `json:"complexity"`       // "easy","medium","hard"
 
 	OrderNumber int `json:"order_number"`
 }
@@ -77,7 +80,6 @@ func (q *Question) BeforeCreate(tx *gorm.DB) (err error) {
 	return
 }
 
-// ... ExamAttempt and QuestionInput remain the same ...
 type ExamAttempt struct {
 	ID uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 
@@ -113,12 +115,6 @@ type QuestionInput struct {
 	OptionD       string `json:"option_d"`
 	CorrectAnswer string `json:"correct_answer"`
 	Points        int    `json:"points"`
+	NegativePoints float64 `json:"negative_points"`
 	OrderNumber   int    `json:"order_number"`
-}
-
-func (ea *ExamAttempt) BeforeCreate(tx *gorm.DB) (err error) {
-	if ea.ID == uuid.Nil {
-		ea.ID = uuid.New()
-	}
-	return
 }

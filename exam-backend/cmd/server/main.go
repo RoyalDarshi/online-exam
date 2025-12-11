@@ -46,13 +46,11 @@ func main() {
 	api.Use(middleware.AuthMiddleware())
 	{
 		// exams (shared)
-		api.GET("/exams", controllers.GetExams)
-		api.GET("/exams/:id", controllers.GetExamDetails)
-
-		// attempts (student)
+		api.GET("/exams", controllers.GetExams)            // list (no questions)
+		api.GET("/exams/:id", controllers.GetExamDetails)  // sanitized questions
 		api.POST("/attempts/start", controllers.StartAttempt)
-		api.POST("/attempts/submit", controllers.SubmitAttempt)
 		api.POST("/progress", controllers.UpdateProgress)
+		api.POST("/attempts/submit", controllers.SubmitAttempt)
 		api.GET("/attempts/:id", controllers.GetAttemptDetails)
 		api.GET("/student/attempts", controllers.GetStudentAttempts)
 

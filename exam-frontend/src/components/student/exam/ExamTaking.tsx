@@ -165,6 +165,7 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
 
   // ERROR
   if (status === "error") {
+    
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950">
         <AlertOctagon className="w-12 h-12 text-rose-500 mb-4" />
@@ -478,65 +479,94 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
                 className={`rounded-xl border bg-white border-slate-200 shadow-sm overflow-hidden dark:bg-slate-900/70 dark:border-slate-800`}
               >
                 {/* Question header */}
-                <div className="px-4 md:px-6 py-3 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 dark:border-slate-800 dark:bg-slate-950/80">
-                  <div className="space-y-1">
-                    <div className="flex items-baseline gap-2">
-                      <h2 className="text-lg md:text-xl font-semibold text-slate-900 dark:text-slate-50">
-                        Question {currentQIndex + 1}
-                      </h2>
-                      <span className="text-xs text-slate-500 dark:text-slate-400">
-                        of {questions.length}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                      <span
-                        className={`px-2 py-0.5 rounded-full font-semibold border ${currentQ.complexity === "hard"
-                          ? "bg-rose-100 text-rose-700 border-rose-300 dark:bg-rose-950/50 dark:text-rose-200 dark:border-rose-700"
-                          : currentQ.complexity === "medium"
-                            ? "bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-700"
-                            : "bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-700"
-                          }`}
-                      >
-                        {currentQ.complexity || "Easy"}
-                      </span>
-                      <span
-                        className={`px-2 py-0.5 rounded-full font-semibold border flex items-center gap-1 ${currentQ.type === "multi-select"
-                          ? "bg-violet-100 text-violet-700 border-violet-300 dark:bg-violet-950/40 dark:text-violet-200 dark:border-violet-700"
-                          : "bg-sky-100 text-sky-700 border-sky-300 dark:bg-sky-950/40 dark:text-sky-200 dark:border-sky-700"
-                          }`}
-                      >
-                        {currentQ.type === "multi-select" ? (
-                          <ListFilter className="w-3 h-3" />
-                        ) : (
-                          <Circle className="w-3 h-3" />
-                        )}
-                        {currentQ.type.replace("-", " ")}
-                      </span>
-                      <span className="px-2 py-0.5 rounded-full font-semibold border border-slate-300 text-slate-700 dark:border-slate-700 dark:text-slate-200">
-                        Marks: {currentQ.points}
-                      </span>
-                      <span className="px-2 py-0.5 rounded-full font-semibold border border-slate-300 text-slate-700 dark:border-slate-700 dark:text-slate-300">
-                        Section: {getSectionName(currentQ)}
-                      </span>
-                    </div>
+                <div className="px-4 md:px-6 py-4 border-b border-slate-200 bg-slate-50 
+                  flex flex-col sm:flex-row sm:items-center justify-between gap-4
+                  dark:border-slate-800 dark:bg-slate-900/60">
+
+                {/* Left Section */}
+                <div className="space-y-1.5">
+                  {/* Question Heading */}
+                  <div className="flex items-baseline gap-2">
+                    <h2 className="text-lg md:text-xl font-semibold text-slate-900 dark:text-slate-50">
+                      Question {currentQIndex + 1}
+                    </h2>
+                    <span className="text-sm text-slate-500 dark:text-slate-400">
+                      / {questions.length}
+                    </span>
                   </div>
 
-                  <button
-                    onClick={toggleMarkCurrent}
-                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs md:text-sm font-semibold border transition ${markedForReview.has(currentQ.id)
-                      ? "bg-violet-600 border-violet-500 text-white dark:bg-violet-900/70 dark:border-violet-600 dark:text-violet-50"
-                      : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                  {/* Metadata Badges */}
+                  <div className="flex flex-wrap items-center gap-2 text-[11px]">
+
+                    {/* Complexity */}
+                    <span
+                      className={`px-2 py-0.5 rounded-full font-medium border shadow-sm capitalize
+                      ${currentQ.complexity === "hard"
+                        ? "bg-rose-100 text-rose-700 border-rose-300 dark:bg-rose-950/50 dark:text-rose-200 dark:border-rose-700"
+                        : currentQ.complexity === "medium"
+                        ? "bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-700"
+                        : "bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-700"
                       }`}
-                  >
-                    <Flag
-                      className={`w-4 h-4 ${markedForReview.has(currentQ.id) ? "fill-violet-200" : ""
-                        }`}
-                    />
-                    {markedForReview.has(currentQ.id)
-                      ? "Marked for Review"
-                      : "Mark for Review"}
-                  </button>
+                    >
+                      {currentQ.complexity || "easy"}
+                    </span>
+
+                    {/* Type */}
+                    <span
+                      className={`px-2 py-0.5 rounded-full font-medium border shadow-sm flex items-center gap-1 capitalize
+                      ${currentQ.type === "multi-select"
+                        ? "bg-violet-100 text-violet-700 border-violet-300 dark:bg-violet-950/40 dark:text-violet-200 dark:border-violet-700"
+                        : "bg-sky-100 text-sky-700 border-sky-300 dark:bg-sky-950/40 dark:text-sky-200 dark:border-sky-700"
+                      }`}
+                    >
+                      {currentQ.type === "multi-select" ? (
+                        <ListFilter className="w-3 h-3" />
+                      ) : (
+                        <Circle className="w-3 h-3" />
+                      )}
+                      {currentQ.type.replace("-", " ")}
+                    </span>
+
+                    {/* Marks */}
+                    <span className="px-2 py-0.5 rounded-full font-medium border border-slate-300 shadow-sm
+                      text-slate-700 dark:border-slate-700 dark:text-slate-200">
+                      Marks: {currentQ.marks}
+                    </span>
+
+                    {/* Negative Marks */}
+                    <span className="px-2 py-0.5 rounded-full font-medium border border-slate-300 shadow-sm
+                      text-slate-700 dark:border-slate-700 dark:text-slate-200">
+                      Negative: {currentQ.negative_marks}
+                    </span>
+
+                    {/* Section */}
+                    <span className="px-2 py-0.5 rounded-full font-medium border border-slate-300 shadow-sm
+                      text-slate-700 dark:border-slate-700 dark:text-slate-300">
+                      Section: {getSectionName(currentQ)}
+                    </span>
+                  </div>
                 </div>
+
+                {/* Mark for Review Button */}
+                <button
+                  onClick={toggleMarkCurrent}
+                  className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs md:text-sm 
+                    font-semibold border shadow-sm transition-all duration-200
+                    ${markedForReview.has(currentQ.id)
+                      ? "bg-violet-600 border-violet-500 text-white dark:bg-violet-900/70 dark:border-violet-600 dark:text-violet-50"
+                      : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700"
+                    }`}
+                >
+                  <Flag
+                    className={`w-4 h-4 ${markedForReview.has(currentQ.id) ? "fill-violet-200" : ""}`}
+                  />
+                  {markedForReview.has(currentQ.id)
+                    ? "Marked for Review"
+                    : "Mark for Review"}
+                </button>
+              </div>
+
+
 
                 {/* Question body */}
                 <div className="px-4 md:px-6 lg:px-8 py-6 md:py-7 bg-white dark:bg-slate-900/80">
@@ -908,7 +938,7 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
                                     Q{globalIdx + 1}
                                   </span>
                                   <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                                    {q.type.replace("-", " ")} • {q.points}{" "}
+                                    {q.type.replace("-", " ")} • {q.marks}{" "}
                                     Marks
                                   </span>
                                 </div>
