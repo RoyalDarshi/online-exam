@@ -1,5 +1,5 @@
 // src/components/teacher/TeacherNavbar.tsx
-import React, { useContext } from "react";
+import React from "react";
 import { ThemeContext } from "../../contexts/ThemeContext";
 import {
     LogOut,
@@ -15,7 +15,7 @@ type Props = {
 };
 
 export function TeacherNavbar({ user, onLogout }: Props) {
-    const { theme, toggleTheme } = useContext(ThemeContext);
+    const { theme, toggleTheme } = React.useContext(ThemeContext);
 
     return (
         <header className="

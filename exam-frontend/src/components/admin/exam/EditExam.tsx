@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import api from "../../../lib/api";
 import { WizardHeader } from "../../admin/wizard/WizardHeader";
 import { StepDesign } from "../../admin/wizard/StepDesign";
@@ -10,26 +10,26 @@ export function EditExam({ examId, onBack, onSaved }: {
     onBack: () => void;
     onSaved: () => void;
 }) {
-    const [loading, setLoading] = useState(true);
-    const [step, setStep] = useState<1 | 2>(1);
-    const [error, setError] = useState("");
+    const [loading, setLoading] = React.useState(true);
+    const [step, setStep] = React.useState<1 | 2>(1);
+    const [error, setError] = React.useState("");
 
     // ---- Loaded Data ----
-    const [subjects, setSubjects] = useState<any[]>([]);
-    const [exam, setExam] = useState<any>(null);
+    const [subjects, setSubjects] = React.useState<any[]>([]);
+    const [exam, setExam] = React.useState<any>(null);
 
     // ---- Editable State ----
-    const [subject, setSubject] = useState("");
-    const [totalQuestions, setTotalQuestions] = useState(0);
-    const [targetTotalMarks, setTargetTotalMarks] = useState(0);
+    const [subject, setSubject] = React.useState("");
+    const [totalQuestions, setTotalQuestions] = React.useState(0);
+    const [targetTotalMarks, setTargetTotalMarks] = React.useState(0);
 
-    const [pts, setPts] = useState({ easy: 1, medium: 2, hard: 5 });
-    const [enableNeg, setEnableNeg] = useState(false);
-    const [neg, setNeg] = useState({ easy: 0.25, medium: 0.5, hard: 1 });
+    const [pts, setPts] = React.useState({ easy: 1, medium: 2, hard: 5 });
+    const [enableNeg, setEnableNeg] = React.useState(false);
+    const [neg, setNeg] = React.useState({ easy: 0.25, medium: 0.5, hard: 1 });
 
-    const [counts, setCounts] = useState({ easy: 0, medium: 0, hard: 0 });
+    const [counts, setCounts] = React.useState({ easy: 0, medium: 0, hard: 0 });
 
-    const [meta, setMeta] = useState({
+    const [meta, setMeta] = React.useState({
         title: "",
         desc: "",
         date: "",
@@ -39,7 +39,7 @@ export function EditExam({ examId, onBack, onSaved }: {
     });
 
     // ---- Load exam + subjects ----
-    useEffect(() => {
+    React.useEffect(() => {
         loadAll();
     }, []);
 

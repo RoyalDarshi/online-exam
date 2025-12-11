@@ -1,5 +1,5 @@
 // src/components/teacher/QuestionBank.tsx
-import React, { useState, useMemo } from "react";
+import React from "react";
 import { TeacherQuestion } from "./TeacherDashboard";
 import api from "../../lib/api";
 import { EditQuestionModal } from "./EditQuestionModal";
@@ -19,17 +19,17 @@ type Props = {
 };
 
 export function QuestionBank({ questions, onRefresh }: Props) {
-    const [search, setSearch] = useState("");
-    const [subjectFilter, setSubjectFilter] = useState("");
-    const [currentPage, setCurrentPage] = useState(1);
-    const [editingQ, setEditingQ] = useState<TeacherQuestion | null>(null);
+    const [search, setSearch] = React.useState("");
+    const [subjectFilter, setSubjectFilter] = React.useState("");
+    const [currentPage, setCurrentPage] = React.useState(1);
+    const [editingQ, setEditingQ] = React.useState<TeacherQuestion | null>(null);
 
     const itemsPerPage = 10;
 
     // --- Derived Data ---
     const subjects = Array.from(new Set(questions.map((q) => q.subject)));
 
-    const filteredData = useMemo(() => {
+    const filteredData = React.useMemo(() => {
         return questions.filter((q) => {
             const matchSubject = subjectFilter ? q.subject === subjectFilter : true;
             const matchSearch = search

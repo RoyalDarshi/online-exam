@@ -1,20 +1,20 @@
 // src/components/Auth.tsx
-import React, { useState, useContext } from 'react';
+import React from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { ThemeContext } from '../../contexts/ThemeContext';
 import { LogIn, UserPlus, Sun, Moon, Loader2 } from 'lucide-react';
 
 export function Auth() {
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState<'admin' | 'student' | 'teacher'>('student');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = React.useState(false);
+  const [email, setEmail] = React.useState('');
+  const [password, setPassword] = React.useState('');
+  const [fullName, setFullName] = React.useState('');
+  const [role, setRole] = React.useState<'admin' | 'student' | 'teacher'>('student');
+  const [error, setError] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
 
   const { signIn, signUp } = useAuth();
-  const { theme, toggleTheme } = useContext(ThemeContext);
+  const { theme, toggleTheme } = React.useContext(ThemeContext);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

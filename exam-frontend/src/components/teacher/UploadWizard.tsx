@@ -1,5 +1,5 @@
 // src/components/teacher/UploadWizard.tsx
-import React, { useState } from "react";
+import React from "react";
 import * as XLSX from "xlsx";
 import api from "../../lib/api";
 import {
@@ -27,9 +27,9 @@ type Props = {
 };
 
 export function UploadWizard({ onCancel, onSuccess }: Props) {
-    const [previewRows, setPreviewRows] = useState<PreviewRow[] | null>(null);
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [uploading, setUploading] = useState(false);
+    const [previewRows, setPreviewRows] = React.useState<PreviewRow[] | null>(null);
+    const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
+    const [uploading, setUploading] = React.useState(false);
 
     // --- Validation Logic ---
     function validateRow(row: any): string[] {

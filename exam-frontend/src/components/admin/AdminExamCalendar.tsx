@@ -1,6 +1,6 @@
 // src/components/AdminExamCalendar.tsx
-import React, { useMemo, useState } from 'react';
-import { Exam } from '../lib/supabase';
+import React from 'react';
+import { Exam } from '../../lib/supabase';
 import {
     ArrowLeft,
     ChevronLeft,
@@ -21,12 +21,12 @@ type CalendarDay = {
 };
 
 export function AdminExamCalendar({ exams, onBack }: Props) {
-    const [currentMonth, setCurrentMonth] = useState(() => {
+    const [currentMonth, setCurrentMonth] = React.useState(() => {
         const d = new Date();
         return new Date(d.getFullYear(), d.getMonth(), 1);
     });
 
-    const calendar = useMemo<CalendarDay[]>(() => {
+    const calendar = React.useMemo<CalendarDay[]>(() => {
         const days: CalendarDay[] = [];
 
         const year = currentMonth.getFullYear();

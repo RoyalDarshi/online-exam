@@ -1,6 +1,6 @@
 // src/components/admin/wizard/StepSchedule.tsx
 import React from "react";
-import { Calendar, Clock, CheckCircle2, FileText, Timer, Trophy } from "lucide-react";
+import { Calendar, CheckCircle2, FileText, Timer, Trophy } from "lucide-react";
 
 type Props = {
     meta: {
@@ -97,7 +97,7 @@ export const StepSchedule: React.FC<Props> = ({
                     </div>
 
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
+                        <label className="text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
                             <Timer className="w-3 h-3" /> Duration (mins)
                         </label>
                         <input
@@ -109,7 +109,7 @@ export const StepSchedule: React.FC<Props> = ({
                     </div>
 
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
+                        <label className="text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
                             <Trophy className="w-3 h-3" /> Passing Score (%)
                         </label>
                         <input

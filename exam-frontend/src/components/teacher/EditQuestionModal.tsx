@@ -1,5 +1,5 @@
 // src/components/teacher/EditQuestionModal.tsx
-import React, { useState } from "react";
+import React from "react";
 import api from "../../lib/api";
 import { TeacherQuestion } from "./TeacherDashboard";
 import { X, Save, Loader2, AlertCircle } from "lucide-react";
@@ -11,9 +11,9 @@ type Props = {
 };
 
 export function EditQuestionModal({ question, onClose, onSuccess }: Props) {
-    const [formData, setFormData] = useState<TeacherQuestion>({ ...question });
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
+    const [formData, setFormData] = React.useState<TeacherQuestion>({ ...question });
+    const [loading, setLoading] = React.useState(false);
+    const [error, setError] = React.useState("");
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();

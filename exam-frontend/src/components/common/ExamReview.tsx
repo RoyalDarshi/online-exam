@@ -580,7 +580,7 @@ const ExamReview: React.FC<Props> = ({ attempt, onBack, mode = "student" }) => {
                                                                     </p>
                                                                     <div className="mt-1 flex flex-wrap gap-2 text-[11px] font-semibold">
                                                                         {mode === "admin" && isCorrect && (
-                                                                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 border border-emerald-400 dark:bg-emerald-900 text-emerald-100 dark:border-emerald-500/80">
+                                                                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-800 px-2 py-0.5 border dark:border-emerald-400 dbg-emerald-900 dark:text-emerald-100 dark:border-emerald-500/80">
                                                                                 <CheckCircle2 className="w-3 h-3" />
                                                                                 Correct Option
                                                                             </span>
@@ -588,7 +588,7 @@ const ExamReview: React.FC<Props> = ({ attempt, onBack, mode = "student" }) => {
                                                                         {isUserSelected &&
                                                                             mode === "admin" &&
                                                                             !isCorrect && (
-                                                                                <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 text-rose-800 px-2 py-0.5 border border-rose-400 dark:bg-rose-900 text-rose-100 dark:border-rose-500/80">
+                                                                                <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 text-rose-800 px-2 py-0.5 border border-rose-400 dark:bg-rose-900 dark:text-rose-100 dark:border-rose-500/80">
                                                                                     <XCircle className="w-3 h-3" />
                                                                                     Your Choice
                                                                                 </span>

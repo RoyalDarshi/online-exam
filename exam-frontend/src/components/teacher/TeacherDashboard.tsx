@@ -1,5 +1,5 @@
 // src/components/TeacherDashboard.tsx
-import React, { useEffect, useState } from "react";
+import React from "react";
 import api from "../../lib/api";
 import { useAuth } from "../../contexts/AuthContext";
 import { TeacherNavbar } from "./TeacherNavbar";
@@ -24,11 +24,11 @@ export type TeacherQuestion = {
 
 export function TeacherDashboard() {
     const { signOut, user } = useAuth();
-    const [questions, setQuestions] = useState<TeacherQuestion[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<"questions" | "analytics" | "upload">("questions");
+    const [questions, setQuestions] = React.useState<TeacherQuestion[]>([]);
+    const [loading, setLoading] = React.useState(true);
+    const [activeTab, setActiveTab] = React.useState<"questions" | "analytics" | "upload">("questions");
 
-    useEffect(() => {
+    React.useEffect(() => {
         loadQuestions();
     }, []);
 

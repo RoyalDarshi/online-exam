@@ -1,5 +1,5 @@
 // src/components/AdminNavbar.tsx
-import React, { useContext } from "react";
+import React from "react";
 import { ThemeContext } from "../../contexts/ThemeContext";
 import {
     LogOut,
@@ -18,7 +18,7 @@ type Props = {
 };
 
 export function AdminNavbar({ onSignOut, onViewCalendar, onViewGenerator, currentView }: Props) {
-    const { theme, toggleTheme } = useContext(ThemeContext);
+    const { theme, toggleTheme } = React.useContext(ThemeContext);
 
     return (
         <header className="

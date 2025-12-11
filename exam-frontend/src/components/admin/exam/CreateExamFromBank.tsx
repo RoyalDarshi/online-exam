@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import api from "../../../lib/api";
 import { WizardHeader } from "../../admin/wizard/WizardHeader";
 import { StepDesign } from "../../admin/wizard/StepDesign";
@@ -11,24 +11,24 @@ type Props = {
 };
 
 export function CreateExamFromBank({ onBack, onComplete }: Props) {
-    const [step, setStep] = useState(1);
-    const [loading, setLoading] = useState(false);
-    const [subjects, setSubjects] = useState<any[]>([]);
-    const [error, setError] = useState("");
+    const [step, setStep] = React.useState(1);
+    const [loading, setLoading] = React.useState(false);
+    const [subjects, setSubjects] = React.useState<any[]>([]);
+    const [error, setError] = React.useState("");
 
     // --- FORM STATE ---
-    const [subject, setSubject] = useState("");
-    const [totalQuestions, setTotalQuestions] = useState(50);
-    const [targetTotalMarks, setTargetTotalMarks] = useState(100);
+    const [subject, setSubject] = React.useState("");
+    const [totalQuestions, setTotalQuestions] = React.useState(50);
+    const [targetTotalMarks, setTargetTotalMarks] = React.useState(100);
 
-    const [pts, setPts] = useState({ easy: 1, medium: 2, hard: 5 });
+    const [pts, setPts] = React.useState({ easy: 1, medium: 2, hard: 5 });
 
-    const [enableNeg, setEnableNeg] = useState(false);
-    const [neg, setNeg] = useState({ easy: 0.25, medium: 0.5, hard: 1.0 });
+    const [enableNeg, setEnableNeg] = React.useState(false);
+    const [neg, setNeg] = React.useState({ easy: 0.25, medium: 0.5, hard: 1.0 });
 
-    const [counts, setCounts] = useState({ easy: 0, medium: 0, hard: 0 });
+    const [counts, setCounts] = React.useState({ easy: 0, medium: 0, hard: 0 });
 
-    const [meta, setMeta] = useState({
+    const [meta, setMeta] = React.useState({
         title: "",
         desc: "",
         date: "",
@@ -38,11 +38,11 @@ export function CreateExamFromBank({ onBack, onComplete }: Props) {
     });
 
     // --- INITIALIZATION ---
-    useEffect(() => {
+    React.useEffect(() => {
         loadSubjects();
     }, []);
 
-    useEffect(() => {
+    React.useEffect(() => {
         const e = Math.round(totalQuestions * 0.4);
         const m = Math.round(totalQuestions * 0.4);
         const h = totalQuestions - e - m;

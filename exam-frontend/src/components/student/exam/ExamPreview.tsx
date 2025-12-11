@@ -1,8 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
     ArrowLeft,
     BookOpen,
-    Clock,
     PlayCircle,
     Info,
     AlertTriangle,
@@ -24,8 +23,8 @@ interface Props {
 export function ExamPreview({ exam, onBack, onStart }: Props) {
     const { user, signOut } = useAuth();
 
-    const [timeLeft, setTimeLeft] = useState<string>("");
-    const [hasAcknowledged, setHasAcknowledged] = useState(false);
+    const [timeLeft, setTimeLeft] = React.useState<string>("");
+    const [hasAcknowledged, setHasAcknowledged] = React.useState(false);
 
     // ExamGuard status (polling true)
     const examGuardActive = useExamGuard(true);
@@ -41,7 +40,7 @@ export function ExamPreview({ exam, onBack, onStart }: Props) {
     const isActive = now >= start && now <= end;
 
     // Countdown only when upcoming
-    useEffect(() => {
+    React.useEffect(() => {
         if (!isUpcoming) return;
 
         const interval = setInterval(() => {

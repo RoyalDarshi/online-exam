@@ -49,6 +49,7 @@ export type ExamAttempt = {
     tab_switches: number;
     // This is a computed field from the server on the student's current attempt
     time_left: number;
+    exam: Exam;
 };
 
 // Response from GET /api/student/attempts
