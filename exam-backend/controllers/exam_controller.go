@@ -48,9 +48,101 @@ type ExamUpsertRequest struct {
 	} `json:"negative_config"`
 }
 
+type ExamPreviewRequest struct {
+	Subject string   `json:"subject"`
+	Topics  []string `json:"topics"`
+
+	TotalQuestions int `json:"total_questions"`
+
+	Difficulty struct {
+		Easy   int `json:"easy"`
+		Medium int `json:"medium"`
+		Hard   int `json:"hard"`
+	} `json:"difficulty"`
+
+	// optional: per-topic desired counts
+	TopicDistribution map[string]int `json:"topic_distribution"`
+}
+
+type ExamPreviewResponse struct {
+	Possible  bool   `json:"possible"`
+	Error     string `json:"error,omitempty"`
+	Available struct {
+		Easy   int            `json:"easy"`
+		Medium int            `json:"medium"`
+		Hard   int            `json:"hard"`
+		Total  int            `json:"total"`
+		Topics map[string]int `json:"topics"`
+	} `json:"available"`
+}
+
+type SubjectSummary struct {
+	Subject string `json:"subject"`
+	Count   int    `json:"count"`
+}
+
+type TopicSummary struct {
+	Topic  string `json:"topic"`
+	Easy   int    `json:"easy"`
+	Medium int    `json:"medium"`
+	Hard   int    `json:"hard"`
+	Total  int    `json:"total"`
+}
+
 // ----------------------
 // HELPER: Generator Logic
 // ----------------------
+
+func AdminGetTopicsForSubject(c *gin.Context) {
+	subject := c.Param("subject")
+	var records []models.QuestionBank
+	if err := database.DB.Where("subject = ?", subject).Find(&records).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load topics"})
+		return
+	}
+
+	byTopic := map[string]*TopicSummary{}
+	for _, q := range records {
+		t := q.Topic
+		if t == "" {
+			t = "Uncategorized"
+		}
+		entry, ok := byTopic[t]
+		if !ok {
+			entry = &TopicSummary{Topic: t}
+			byTopic[t] = entry
+		}
+		entry.Total++
+		switch strings.ToLower(q.Complexity) {
+		case "easy":
+			entry.Easy++
+		case "medium":
+			entry.Medium++
+		case "hard":
+			entry.Hard++
+		}
+	}
+
+	out := make([]TopicSummary, 0, len(byTopic))
+	for _, v := range byTopic {
+		out = append(out, *v)
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// GET /api/admin/bank/subjects
+func AdminGetSubjects(c *gin.Context) {
+	rows := []SubjectSummary{}
+	if err := database.DB.Model(&models.QuestionBank{}).
+		Select("subject, COUNT(*) as count").
+		Group("subject").
+		Scan(&rows).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load subjects"})
+		return
+	}
+	c.JSON(http.StatusOK, rows)
+}
+
 func generateQuestionsFromBank(tx *gorm.DB, examID uuid.UUID, req ExamUpsertRequest) error {
 	// 1. Fetch Candidates
 	var bank []models.QuestionBank
