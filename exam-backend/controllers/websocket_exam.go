@@ -6,11 +6,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
+
 	"exam-backend/database"
 	"exam-backend/models"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"gorm.io/gorm"
 )
@@ -35,6 +36,46 @@ func redisDel(key string) error {
 // ExamWebSocket handles a websocket for an exam attempt.
 // query params: attempt_id, token, fingerprint (optional)
 // ExamWebSocket handles a websocket for an exam attempt.
+// backend/controllers/websocket_exam.go
+
+// backend/controllers/websocket_exam.go
+
+func handleDisconnectWithGracePeriod(attemptID string, waitTime time.Duration) {
+	// 1. Wait for grace period
+	time.Sleep(waitTime)
+
+	// 2. Check for reconnection
+	val, _ := redisGet("ws_active:" + attemptID)
+	if val != "" {
+		return // User returned!
+	}
+
+	// 3. Check DB status
+	var attempt models.ExamAttempt
+	// Preload Exam questions so we can calculate the score
+	if err := database.DB.Preload("Exam.Questions").First(&attempt, "id = ?", attemptID).Error; err != nil {
+		return
+	}
+
+	if attempt.SubmittedAt != nil || attempt.IsTerminated {
+		return // Already done
+	}
+
+	// 4. AUTO-SUBMIT & SCORE
+	// We calculate the score now so the record is complete.
+	score, total := evaluateScore(attempt.Exam, attempt.Answers)
+
+	now := time.Now()
+
+	database.DB.Model(&attempt).Updates(map[string]interface{}{
+		"submitted_at": now,
+		"score":        score,
+		"total_points": total,
+		"passed":       score >= attempt.Exam.PassingScore,
+		// We leave termination_reason empty because this is a valid auto-submit
+	})
+}
+
 func ExamWebSocket(c *gin.Context) {
 	attemptID := c.Query("attempt_id")
 	token := c.Query("token")
@@ -66,12 +107,8 @@ func ExamWebSocket(c *gin.Context) {
 
 	// enforce single active websocket session
 	wsKey := "ws_active:" + attemptID
-	existing, _ := redisGet(wsKey)
-	if existing != "" {
-		c.JSON(http.StatusConflict, gin.H{"error": "another_session_active"})
-		return
-	}
 
+	// Set the key to mark user as ONLINE
 	_ = redisSet(wsKey, token, 2*time.Hour)
 
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
@@ -79,9 +116,17 @@ func ExamWebSocket(c *gin.Context) {
 		redisDel(wsKey)
 		return
 	}
+
+	// CLEANUP: When connection closes (Internet disconnects)
 	defer func() {
 		conn.Close()
+
+		// 1. Mark user as OFFLINE immediately in Redis
 		redisDel(wsKey)
+
+		// 2. Spawn the "Grim Reaper" (Background Timer)
+		// This runs independently even after the request finishes
+		go handleDisconnectWithGracePeriod(attemptID, 5*time.Minute)
 	}()
 
 	heartbeatInterval := 15 * time.Second
@@ -107,8 +152,9 @@ func ExamWebSocket(c *gin.Context) {
 	for {
 		mt, message, err := conn.ReadMessage()
 		if err != nil {
-			// This triggers if the ReadDeadline expires (30s)
-			terminateAttempt(aid.String(), "connection_error")
+			// CONNECTION LOST: Break the loop.
+			// Do NOT terminateAttempt() here.
+			// The defer func() above will handle the grace period.
 			return
 		}
 		if mt == websocket.TextMessage {
@@ -145,19 +191,32 @@ func ExamWebSocket(c *gin.Context) {
 
 		// Fallback check
 		if time.Since(lastBeat) > heartbeatTimeout {
-			terminateAttempt(aid.String(), "heartbeat_timeout")
+			// CONNECTION TIMEOUT: Break loop, let defer handle it
 			return
 		}
 	}
 }
 
 // terminateAttempt marks the attempt terminated in DB and removes redis keys.
+// terminateAttempt marks the attempt terminated in DB and removes redis keys.
 func terminateAttempt(attemptID string, reason string) {
-	database.DB.Model(&models.ExamAttempt{}).Where("id = ?", attemptID).
+	// CRITICAL FIX: Add "AND submitted_at IS NULL"
+	// We only want to terminate if the student hasn't already successfully submitted.
+	// This prevents the "connection_error" from triggering when the user leaves the page after finishing.
+
+	result := database.DB.Model(&models.ExamAttempt{}).
+		Where("id = ? AND submitted_at IS NULL", attemptID).
 		Updates(map[string]interface{}{
 			"is_terminated":      true,
 			"termination_reason": reason,
 			"submitted_at":       time.Now(),
 		})
+
+	// Only delete Redis key if we actually terminated (or just always delete it to be safe)
 	_ = redisDel("ws_active:" + attemptID)
+
+	// Optional: Log if we prevented a false termination
+	if result.RowsAffected == 0 {
+		// fmt.Printf("Prevented false termination for attempt %s (reason: %s)\n", attemptID, reason)
+	}
 }

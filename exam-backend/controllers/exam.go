@@ -4,10 +4,7 @@ import (
 	"exam-backend/database"
 	"exam-backend/models"
 	"net/http"
-	"sort"
 	"strconv"
-	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -405,14 +402,14 @@ func DeleteExam(c *gin.Context) {
 // }
 
 // Helper to sort "A,C,B" -> "A,B,C" for comparison
-func sortAnswer(ans string) string {
-	parts := strings.Split(ans, ",")
-	for i := range parts {
-		parts[i] = strings.TrimSpace(parts[i])
-	}
-	sort.Strings(parts)
-	return strings.Join(parts, ",")
-}
+// func sortAnswer(ans string) string {
+// 	parts := strings.Split(ans, ",")
+// 	for i := range parts {
+// 		parts[i] = strings.TrimSpace(parts[i])
+// 	}
+// 	sort.Strings(parts)
+// 	return strings.Join(parts, ",")
+// }
 
 // Submit attempt – server-side final time validation & scoring
 // func SubmitAttempt(c *gin.Context) {
@@ -626,75 +623,75 @@ func GetStudentAttempts(c *gin.Context) {
 }
 
 // Admin: Update exam + overwrite questions
-func UpdateExamWithQuestions(c *gin.Context) {
-	examID := c.Param("id")
+// func UpdateExamWithQuestions(c *gin.Context) {
+// 	examID := c.Param("id")
 
-	var input struct {
-		Title           *string                `json:"title"`
-		Description     *string                `json:"description"`
-		DurationMinutes *int                   `json:"duration_minutes"`
-		PassingScore    *int                   `json:"passing_score"`
-		IsActive        *bool                  `json:"is_active"`
-		StartTime       *time.Time             `json:"start_time"`
-		Questions       []models.QuestionInput `json:"questions"`
-	}
+// 	var input struct {
+// 		Title           *string                `json:"title"`
+// 		Description     *string                `json:"description"`
+// 		DurationMinutes *int                   `json:"duration_minutes"`
+// 		PassingScore    *int                   `json:"passing_score"`
+// 		IsActive        *bool                  `json:"is_active"`
+// 		StartTime       *time.Time             `json:"start_time"`
+// 		Questions       []models.QuestionInput `json:"questions"`
+// 	}
 
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+// 	if err := c.ShouldBindJSON(&input); err != nil {
+// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+// 		return
+// 	}
 
-	var exam models.Exam
-	if err := database.DB.First(&exam, "id = ?", examID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Exam not found"})
-		return
-	}
+// 	var exam models.Exam
+// 	if err := database.DB.First(&exam, "id = ?", examID).Error; err != nil {
+// 		c.JSON(http.StatusNotFound, gin.H{"error": "Exam not found"})
+// 		return
+// 	}
 
-	// Update exam fields
-	if input.Title != nil {
-		exam.Title = *input.Title
-	}
-	if input.Description != nil {
-		exam.Description = *input.Description
-	}
-	if input.DurationMinutes != nil {
-		exam.DurationMinutes = *input.DurationMinutes
-	}
-	if input.PassingScore != nil {
-		exam.PassingScore = *input.PassingScore
-	}
-	if input.IsActive != nil {
-		exam.IsActive = *input.IsActive
-	}
-	if input.StartTime != nil {
-		exam.StartTime = input.StartTime.In(istLocation)
-		exam.EndTime = exam.StartTime.Add(time.Duration(exam.DurationMinutes) * time.Minute)
-	}
+// 	// Update exam fields
+// 	if input.Title != nil {
+// 		exam.Title = *input.Title
+// 	}
+// 	if input.Description != nil {
+// 		exam.Description = *input.Description
+// 	}
+// 	if input.DurationMinutes != nil {
+// 		exam.DurationMinutes = *input.DurationMinutes
+// 	}
+// 	if input.PassingScore != nil {
+// 		exam.PassingScore = *input.PassingScore
+// 	}
+// 	if input.IsActive != nil {
+// 		exam.IsActive = *input.IsActive
+// 	}
+// 	if input.StartTime != nil {
+// 		exam.StartTime = input.StartTime.In(istLocation)
+// 		exam.EndTime = exam.StartTime.Add(time.Duration(exam.DurationMinutes) * time.Minute)
+// 	}
 
-	// Update questions: remove old, add new
-	database.DB.Where("exam_id = ?", exam.ID).Delete(&models.Question{})
+// 	// Update questions: remove old, add new
+// 	database.DB.Where("exam_id = ?", exam.ID).Delete(&models.Question{})
 
-	for _, q := range input.Questions {
-		newQ := models.Question{
-			ExamID:        exam.ID,
-			Type:          q.Type,
-			QuestionText:  q.QuestionText,
-			OptionA:       q.OptionA,
-			OptionB:       q.OptionB,
-			OptionC:       q.OptionC,
-			OptionD:       q.OptionD,
-			CorrectAnswer: q.CorrectAnswer,
-			Points:        q.Points,
-			OrderNumber:   q.OrderNumber,
-		}
-		database.DB.Create(&newQ)
-	}
+// 	for _, q := range input.Questions {
+// 		newQ := models.Question{
+// 			ExamID:        exam.ID,
+// 			Type:          q.Type,
+// 			QuestionText:  q.QuestionText,
+// 			OptionA:       q.OptionA,
+// 			OptionB:       q.OptionB,
+// 			OptionC:       q.OptionC,
+// 			OptionD:       q.OptionD,
+// 			CorrectAnswer: q.CorrectAnswer,
+// 			Points:        q.Points,
+// 			OrderNumber:   q.OrderNumber,
+// 		}
+// 		database.DB.Create(&newQ)
+// 	}
 
-	// Save final exam
-	database.DB.Save(&exam)
+// 	// Save final exam
+// 	database.DB.Save(&exam)
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Exam updated successfully",
-		"exam":    exam,
-	})
-}
+// 	c.JSON(http.StatusOK, gin.H{
+// 		"message": "Exam updated successfully",
+// 		"exam":    exam,
+// 	})
+// }

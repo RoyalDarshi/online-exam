@@ -241,8 +241,7 @@ func computeTimeLeftSeconds(exam models.Exam, attempt models.ExamAttempt) int64 
 	if exam.DurationMinutes <= 0 {
 		return 0
 	}
-	elapsed := time.Since(attempt.StartedAt)
-	left := int64(exam.DurationMinutes*60) - int64(elapsed.Seconds())
+	left := int64(exam.EndTime.Sub(attempt.StartedAt).Seconds())
 	if left < 0 {
 		return 0
 	}
@@ -351,7 +350,15 @@ func SubmitAttempt(c *gin.Context) {
 
 	attempt.Score = score
 	attempt.TotalPoints = total
-	attempt.Passed = score >= attempt.Exam.PassingScore
+
+	percentage := 0.0
+	if total > 0 {
+		percentage = (float64(score) / float64(total)) * 100
+	}
+
+	// Check if percentage >= PassingScore (assuming PassingScore is e.g., 33, 40, 50)
+	attempt.Passed = percentage >= float64(attempt.Exam.PassingScore)
+
 	now := nowIST()
 	attempt.SubmittedAt = &now
 
