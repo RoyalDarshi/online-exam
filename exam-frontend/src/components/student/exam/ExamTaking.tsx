@@ -528,20 +528,20 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
                     </span>
 
                     {/* Marks */}
-                    <span className="px-2 py-0.5 rounded-full font-medium border border-slate-300 shadow-sm
-                      text-slate-700 dark:border-slate-700 dark:text-slate-200">
-                      Marks: {currentQ.marks}
+                    <span className="px-2 py-0.5 rounded-full font-medium border border-green-300 shadow-sm
+                      text-green-700 dark:border-green-700 dark:text-green-200">
+                      Marks: +{currentQ.marks}
                     </span>
 
                     {/* Negative Marks */}
-                    <span className="px-2 py-0.5 rounded-full font-medium border border-slate-300 shadow-sm
-                      text-slate-700 dark:border-slate-700 dark:text-slate-200">
-                      Negative: {currentQ.negative_marks}
+                    <span className="px-2 py-0.5 rounded-full font-medium border border-red-300 shadow-sm
+                      text-red-700 dark:border-red-700 dark:text-red-200">
+                      Negative: -{currentQ.negative_marks}
                     </span>
 
                     {/* Section */}
-                    <span className="px-2 py-0.5 rounded-full font-medium border border-slate-300 shadow-sm
-                      text-slate-700 dark:border-slate-700 dark:text-slate-300">
+                    <span className="px-2 py-0.5 rounded-full font-medium border border-sky-300 shadow-sm
+                      text-sky-700 dark:border-sky-700 dark:text-sky-300">
                       Section: {getSectionName(currentQ)}
                     </span>
                   </div>
