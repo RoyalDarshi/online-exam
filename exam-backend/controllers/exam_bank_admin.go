@@ -108,103 +108,103 @@ type ExamPreviewResponse struct {
 }
 
 // POST /api/admin/exams/preview
-func ExamBankPreview(c *gin.Context) {
-	var req ExamPreviewRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	if req.Subject == "" || req.TotalQuestions <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "subject and total_questions required"})
-		return
-	}
+// func ExamBankPreview(c *gin.Context) {
+// 	var req ExamPreviewRequest
+// 	if err := c.ShouldBindJSON(&req); err != nil {
+// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+// 		return
+// 	}
+// 	if req.Subject == "" || req.TotalQuestions <= 0 {
+// 		c.JSON(http.StatusBadRequest, gin.H{"error": "subject and total_questions required"})
+// 		return
+// 	}
 
-	// load questions matching subject + topics
-	var bank []models.QuestionBank
-	query := database.DB.Where("subject = ?", req.Subject)
-	if len(req.Topics) > 0 {
-		query = query.Where("topic IN ?", req.Topics)
-	}
-	if err := query.Find(&bank).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load question bank"})
-		return
-	}
+// 	// load questions matching subject + topics
+// 	var bank []models.QuestionBank
+// 	query := database.DB.Where("subject = ?", req.Subject)
+// 	if len(req.Topics) > 0 {
+// 		query = query.Where("topic IN ?", req.Topics)
+// 	}
+// 	if err := query.Find(&bank).Error; err != nil {
+// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load question bank"})
+// 		return
+// 	}
 
-	if len(bank) < req.TotalQuestions {
-		c.JSON(http.StatusOK, ExamPreviewResponse{
-			Possible: false,
-			Error:    "Not enough total questions in bank",
-		})
-		return
-	}
+// 	if len(bank) < req.TotalQuestions {
+// 		c.JSON(http.StatusOK, ExamPreviewResponse{
+// 			Possible: false,
+// 			Error:    "Not enough total questions in bank",
+// 		})
+// 		return
+// 	}
 
-	// difficulty buckets
-	easy := 0
-	medium := 0
-	hard := 0
-	byTopic := map[string]int{}
+// 	// difficulty buckets
+// 	easy := 0
+// 	medium := 0
+// 	hard := 0
+// 	byTopic := map[string]int{}
 
-	for _, q := range bank {
-		byTopic[q.Topic]++
-		switch strings.ToLower(q.Complexity) {
-		case "easy":
-			easy++
-		case "medium":
-			medium++
-		case "hard":
-			hard++
-		}
-	}
+// 	for _, q := range bank {
+// 		byTopic[q.Topic]++
+// 		switch strings.ToLower(q.Complexity) {
+// 		case "easy":
+// 			easy++
+// 		case "medium":
+// 			medium++
+// 		case "hard":
+// 			hard++
+// 		}
+// 	}
 
-	needEasy := req.TotalQuestions * req.Difficulty.Easy / 100
-	needMedium := req.TotalQuestions * req.Difficulty.Medium / 100
-	needHard := req.TotalQuestions - needEasy - needMedium
+// 	needEasy := req.TotalQuestions * req.Difficulty.Easy / 100
+// 	needMedium := req.TotalQuestions * req.Difficulty.Medium / 100
+// 	needHard := req.TotalQuestions - needEasy - needMedium
 
-	if easy < needEasy {
-		c.JSON(http.StatusOK, ExamPreviewResponse{
-			Possible: false,
-			Error:    "Not enough EASY questions in bank",
-		})
-		return
-	}
-	if medium < needMedium {
-		c.JSON(http.StatusOK, ExamPreviewResponse{
-			Possible: false,
-			Error:    "Not enough MEDIUM questions in bank",
-		})
-		return
-	}
-	if hard < needHard {
-		c.JSON(http.StatusOK, ExamPreviewResponse{
-			Possible: false,
-			Error:    "Not enough HARD questions in bank",
-		})
-		return
-	}
+// 	if easy < needEasy {
+// 		c.JSON(http.StatusOK, ExamPreviewResponse{
+// 			Possible: false,
+// 			Error:    "Not enough EASY questions in bank",
+// 		})
+// 		return
+// 	}
+// 	if medium < needMedium {
+// 		c.JSON(http.StatusOK, ExamPreviewResponse{
+// 			Possible: false,
+// 			Error:    "Not enough MEDIUM questions in bank",
+// 		})
+// 		return
+// 	}
+// 	if hard < needHard {
+// 		c.JSON(http.StatusOK, ExamPreviewResponse{
+// 			Possible: false,
+// 			Error:    "Not enough HARD questions in bank",
+// 		})
+// 		return
+// 	}
 
-	// topic distribution checks (optional)
-	if len(req.TopicDistribution) > 0 {
-		for topic, need := range req.TopicDistribution {
-			avail := byTopic[topic]
-			if avail < need {
-				c.JSON(http.StatusOK, ExamPreviewResponse{
-					Possible: false,
-					Error:    "Not enough questions in topic: " + topic,
-				})
-				return
-			}
-		}
-	}
+// 	// topic distribution checks (optional)
+// 	if len(req.TopicDistribution) > 0 {
+// 		for topic, need := range req.TopicDistribution {
+// 			avail := byTopic[topic]
+// 			if avail < need {
+// 				c.JSON(http.StatusOK, ExamPreviewResponse{
+// 					Possible: false,
+// 					Error:    "Not enough questions in topic: " + topic,
+// 				})
+// 				return
+// 			}
+// 		}
+// 	}
 
-	resp := ExamPreviewResponse{Possible: true}
-	resp.Available.Easy = easy
-	resp.Available.Medium = medium
-	resp.Available.Hard = hard
-	resp.Available.Total = len(bank)
-	resp.Available.Topics = byTopic
+// 	resp := ExamPreviewResponse{Possible: true}
+// 	resp.Available.Easy = easy
+// 	resp.Available.Medium = medium
+// 	resp.Available.Hard = hard
+// 	resp.Available.Total = len(bank)
+// 	resp.Available.Topics = byTopic
 
-	c.JSON(http.StatusOK, resp)
-}
+// 	c.JSON(http.StatusOK, resp)
+// }
 
 // POST /api/admin/exams/from-bank
 // Body: same as preview + regular exam fields (title, description, duration, passing_score, start_time)

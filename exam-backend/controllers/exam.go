@@ -45,42 +45,42 @@ import (
 // ----------------- EXAMS -----------------
 
 // Admin: create exam + questions
-func CreateExam(c *gin.Context) {
-	var exam models.Exam
-	if err := c.ShouldBindJSON(&exam); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+// func CreateExam(c *gin.Context) {
+// 	var exam models.Exam
+// 	if err := c.ShouldBindJSON(&exam); err != nil {
+// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+// 		return
+// 	}
 
-	uidVal, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found in context"})
-		return
-	}
-	userIDStr, ok := uidVal.(string)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid userID type"})
-		return
-	}
-	userID, err := uuid.Parse(userIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid userID"})
-		return
-	}
-	exam.CreatedByID = userID
+// 	uidVal, exists := c.Get("userID")
+// 	if !exists {
+// 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found in context"})
+// 		return
+// 	}
+// 	userIDStr, ok := uidVal.(string)
+// 	if !ok {
+// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid userID type"})
+// 		return
+// 	}
+// 	userID, err := uuid.Parse(userIDStr)
+// 	if err != nil {
+// 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid userID"})
+// 		return
+// 	}
+// 	exam.CreatedByID = userID
 
-	// IMPORTANT: normalize StartTime to IST and compute EndTime
-	if !exam.StartTime.IsZero() && exam.DurationMinutes > 0 {
-		exam.StartTime = exam.StartTime.In(istLocation)
-		exam.EndTime = exam.StartTime.Add(time.Duration(exam.DurationMinutes) * time.Minute)
-	}
+// 	// IMPORTANT: normalize StartTime to IST and compute EndTime
+// 	if !exam.StartTime.IsZero() && exam.DurationMinutes > 0 {
+// 		exam.StartTime = exam.StartTime.In(istLocation)
+// 		exam.EndTime = exam.StartTime.Add(time.Duration(exam.DurationMinutes) * time.Minute)
+// 	}
 
-	if err := database.DB.Create(&exam).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create exam"})
-		return
-	}
-	c.JSON(http.StatusOK, exam)
-}
+// 	if err := database.DB.Create(&exam).Error; err != nil {
+// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create exam"})
+// 		return
+// 	}
+// 	c.JSON(http.StatusOK, exam)
+// }
 
 // List exams (students only see active ones)
 func GetExams(c *gin.Context) {
@@ -184,68 +184,68 @@ func AdminGetExam(c *gin.Context) {
 // }
 
 // Admin: update exam (used for is_active, schedule changes, etc.)
-func UpdateExam(c *gin.Context) {
-	id := c.Param("id")
+// func UpdateExam(c *gin.Context) {
+// 	id := c.Param("id")
 
-	var input struct {
-		Title           *string    `json:"title"`
-		Description     *string    `json:"description"`
-		Subject         *string    `json:"subject"`
-		DurationMinutes *int       `json:"duration_minutes"`
-		PassingScore    *int       `json:"passing_score"`
-		IsActive        *bool      `json:"is_active"`
-		StartTime       *time.Time `json:"start_time"`
-		EndTime         *time.Time `json:"end_time"`
-	}
+// 	var input struct {
+// 		Title           *string    `json:"title"`
+// 		Description     *string    `json:"description"`
+// 		Subject         *string    `json:"subject"`
+// 		DurationMinutes *int       `json:"duration_minutes"`
+// 		PassingScore    *int       `json:"passing_score"`
+// 		IsActive        *bool      `json:"is_active"`
+// 		StartTime       *time.Time `json:"start_time"`
+// 		EndTime         *time.Time `json:"end_time"`
+// 	}
 
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+// 	if err := c.ShouldBindJSON(&input); err != nil {
+// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+// 		return
+// 	}
 
-	var exam models.Exam
-	if err := database.DB.First(&exam, "id = ?", id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Exam not found"})
-		return
-	}
+// 	var exam models.Exam
+// 	if err := database.DB.First(&exam, "id = ?", id).Error; err != nil {
+// 		c.JSON(http.StatusNotFound, gin.H{"error": "Exam not found"})
+// 		return
+// 	}
 
-	if input.Title != nil {
-		exam.Title = *input.Title
-	}
-	if input.Subject != nil {
-		exam.Subject = *input.Subject
-	}
-	if input.Description != nil {
-		exam.Description = *input.Description
-	}
-	if input.DurationMinutes != nil {
-		exam.DurationMinutes = *input.DurationMinutes
-	}
-	if input.PassingScore != nil {
-		exam.PassingScore = *input.PassingScore
-	}
-	if input.IsActive != nil {
-		exam.IsActive = *input.IsActive
-	}
-	if input.StartTime != nil {
-		exam.StartTime = input.StartTime.In(istLocation)
-	}
-	if input.EndTime != nil {
-		exam.EndTime = input.EndTime.In(istLocation)
-	}
+// 	if input.Title != nil {
+// 		exam.Title = *input.Title
+// 	}
+// 	if input.Subject != nil {
+// 		exam.Subject = *input.Subject
+// 	}
+// 	if input.Description != nil {
+// 		exam.Description = *input.Description
+// 	}
+// 	if input.DurationMinutes != nil {
+// 		exam.DurationMinutes = *input.DurationMinutes
+// 	}
+// 	if input.PassingScore != nil {
+// 		exam.PassingScore = *input.PassingScore
+// 	}
+// 	if input.IsActive != nil {
+// 		exam.IsActive = *input.IsActive
+// 	}
+// 	if input.StartTime != nil {
+// 		exam.StartTime = input.StartTime.In(istLocation)
+// 	}
+// 	if input.EndTime != nil {
+// 		exam.EndTime = input.EndTime.In(istLocation)
+// 	}
 
-	// If we have StartTime + Duration but no EndTime, recompute
-	if !exam.StartTime.IsZero() && exam.DurationMinutes > 0 && exam.EndTime.IsZero() {
-		exam.EndTime = exam.StartTime.Add(time.Duration(exam.DurationMinutes) * time.Minute)
-	}
+// 	// If we have StartTime + Duration but no EndTime, recompute
+// 	if !exam.StartTime.IsZero() && exam.DurationMinutes > 0 && exam.EndTime.IsZero() {
+// 		exam.EndTime = exam.StartTime.Add(time.Duration(exam.DurationMinutes) * time.Minute)
+// 	}
 
-	if err := database.DB.Save(&exam).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update exam"})
-		return
-	}
+// 	if err := database.DB.Save(&exam).Error; err != nil {
+// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update exam"})
+// 		return
+// 	}
 
-	c.JSON(http.StatusOK, exam)
-}
+// 	c.JSON(http.StatusOK, exam)
+// }
 
 // Admin: delete exam (questions & attempts cascade if FK set)
 func DeleteExam(c *gin.Context) {

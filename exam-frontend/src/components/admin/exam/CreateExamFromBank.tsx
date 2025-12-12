@@ -143,7 +143,7 @@ export function CreateExamFromBank({ onBack, onComplete }: Props) {
                 start_time: `${meta.date}T${meta.time}:00+05:30`,
             };
 
-            await api.post("/admin/exams/from-bank", payload);
+            await api.post("/admin/exams", payload);
             onComplete();
         } catch (err) {
             console.error(err);

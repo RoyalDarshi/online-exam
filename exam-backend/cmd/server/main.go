@@ -86,13 +86,11 @@ func main() {
 			admin.DELETE("/exams/:id", controllers.DeleteExam)
 
 			admin.PUT("/exams/:id", controllers.UpdateExam)
-			admin.PUT("/exams/:id/regenerate", controllers.RegenerateExam)
 
 			admin.GET("/exams/:id/attempts", controllers.GetExamAttempts)
 			admin.GET("/attempts/:id", controllers.GetAttemptDetails)
 
 			admin.POST("/exams/preview", controllers.ExamBankPreview)
-			admin.POST("/exams/from-bank", controllers.CreateExamFromBank)
 
 			admin.GET("/bank/subjects", controllers.AdminGetSubjects)
 			admin.GET("/bank/subjects/:subject/topics", controllers.AdminGetTopicsForSubject)
