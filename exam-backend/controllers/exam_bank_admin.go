@@ -216,6 +216,7 @@ type CreateExamFromBankRequest struct {
 	DurationMinutes int       `json:"duration_minutes"`
 	PassingScore    int       `json:"passing_score"`
 	StartTime       time.Time `json:"start_time"`
+	Subject         string    `json:"subject"`
 
 	PointsConfig struct {
 		Easy   int `json:"easy"`
@@ -293,6 +294,7 @@ func CreateExamFromBank(c *gin.Context) {
 		Description:           req.Description,
 		DurationMinutes:       req.DurationMinutes,
 		PassingScore:          req.PassingScore,
+		Subject:               req.Subject,
 		CreatedByID:           adminID,
 		StartTime:             req.StartTime.In(istLocation),
 		EnableNegativeMarking: req.EnableNegativeMarking,
@@ -414,6 +416,7 @@ func RegenerateExam(c *gin.Context) {
 	// 4. Update Exam Metadata
 	exam.Title = req.Title
 	exam.Description = req.Description
+	exam.Subject = req.Subject
 	exam.DurationMinutes = req.DurationMinutes
 	exam.PassingScore = req.PassingScore
 	exam.StartTime = req.StartTime.In(istLocation)

@@ -30,6 +30,7 @@ type Exam struct {
 	DurationMinutes int       `json:"duration_minutes"`
 	PassingScore    int       `json:"passing_score"`
 	IsActive        bool      `gorm:"default:true" json:"is_active"`
+	Subject         string    `json:"subject"`
 
 	StartTime time.Time `json:"start_time"`
 	EndTime   time.Time `json:"end_time"`
@@ -59,6 +60,7 @@ type Question struct {
 	ID            uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 	ExamID        uuid.UUID `json:"exam_id"`
 	Type          string    `json:"type"` // "single-choice" or "multi-select"
+	Subject       string    `json:"subject"`
 	QuestionText  string    `json:"question_text"`
 	OptionA       string    `json:"option_a"`
 	OptionB       string    `json:"option_b"`

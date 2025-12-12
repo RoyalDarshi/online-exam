@@ -50,7 +50,7 @@ export const StepDesign: React.FC<Props> = ({
     currentTotalQs,
 }) => {
     const [distMode, setDistMode] = useState<"percent" | "count">("percent");
-
+    console.log(subjects)
     const handleDistChange = (
         type: "easy" | "medium" | "hard",
         val: number
@@ -79,7 +79,7 @@ export const StepDesign: React.FC<Props> = ({
 
                     <select
                         className="w-full p-3 rounded-lg border bg-slate-50 text-slate-900 border-slate-200 outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 dark:bg-slate-950 dark:text-slate-100 dark:border-slate-800"
-                        value={subject || subjects[0]?.subject}
+                        value={subject}
                         onChange={(e) => setSubject(e.target.value)}
                     >
                         <option value="">Select a Subject...</option>

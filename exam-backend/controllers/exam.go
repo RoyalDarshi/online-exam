@@ -143,7 +143,7 @@ func AdminGetExam(c *gin.Context) {
 		"end_time":         exam.EndTime,
 		"created_by":       exam.CreatedByID,
 		"created_at":       exam.CreatedAt,
-
+		"subject":          exam.Subject,
 		"points_config": gin.H{
 			"easy":   1,
 			"medium": 2,
@@ -190,6 +190,7 @@ func UpdateExam(c *gin.Context) {
 	var input struct {
 		Title           *string    `json:"title"`
 		Description     *string    `json:"description"`
+		Subject         *string    `json:"subject"`
 		DurationMinutes *int       `json:"duration_minutes"`
 		PassingScore    *int       `json:"passing_score"`
 		IsActive        *bool      `json:"is_active"`
@@ -210,6 +211,9 @@ func UpdateExam(c *gin.Context) {
 
 	if input.Title != nil {
 		exam.Title = *input.Title
+	}
+	if input.Subject != nil {
+		exam.Subject = *input.Subject
 	}
 	if input.Description != nil {
 		exam.Description = *input.Description
