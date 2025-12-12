@@ -165,7 +165,7 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
 
   // ERROR
   if (status === "error") {
-    
+
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950">
         <AlertOctagon className="w-12 h-12 text-rose-500 mb-4" />
@@ -420,51 +420,51 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
       {/* MAIN LAYOUT */}
       <div className="flex flex-1 overflow-hidden">
         {/* BLOCKER: ExamGuard disconnected */}
-          {!guardActive && (
-            <div className="absolute inset-0 z-50 bg-rose-950/80 backdrop-blur-sm flex flex-col items-center justify-center text-center p-4">
-              <div className="mb-5 flex items-center justify-center">
-                <div className="bg-rose-900/60 p-4 rounded-full border border-rose-500">
-                  <ShieldAlert className="w-10 h-10 text-rose-200" />
-                </div>
+        {!guardActive && (
+          <div className="absolute inset-0 z-50 bg-rose-950/80 backdrop-blur-sm flex flex-col items-center justify-center text-center p-4">
+            <div className="mb-5 flex items-center justify-center">
+              <div className="bg-rose-900/60 p-4 rounded-full border border-rose-500">
+                <ShieldAlert className="w-10 h-10 text-rose-200" />
               </div>
-              <h1 className="text-xl md:text-2xl font-bold text-rose-50 mb-2">
-                ExamGuard Disconnected
-              </h1>
-              <p className="text-rose-100 mb-4 max-w-md text-sm">
-                The secure exam environment has been lost. Please ensure{" "}
-                <b>ExamGuard.exe</b> is running on this system. The test will
-                remain paused until ExamGuard reconnects.
-              </p>
-              <p className="text-rose-200 text-xs opacity-80">
-                Once ExamGuard is running again, this screen will disappear and
-                you can continue the test.
-              </p>
             </div>
-          )}
+            <h1 className="text-xl md:text-2xl font-bold text-rose-50 mb-2">
+              ExamGuard Disconnected
+            </h1>
+            <p className="text-rose-100 mb-4 max-w-md text-sm">
+              The secure exam environment has been lost. Please ensure{" "}
+              <b>ExamGuard.exe</b> is running on this system. The test will
+              remain paused until ExamGuard reconnects.
+            </p>
+            <p className="text-rose-200 text-xs opacity-80">
+              Once ExamGuard is running again, this screen will disappear and
+              you can continue the test.
+            </p>
+          </div>
+        )}
 
-          {/* BLOCKER: fullscreen off (only if ExamGuard is active) */}
-          {guardActive && !isFullScreen && (
-            <div className="absolute inset-0 z-40 bg-slate-100/90 dark:bg-slate-950/95 backdrop-blur-sm flex flex-col items-center justify-center text-center p-4">
-              <div className="mb-5 flex items-center justify-center">
-                <div className="bg-rose-100 p-4 rounded-full border border-rose-300 dark:bg-rose-900/60 dark:border-rose-700">
-                  <AlertOctagon className="w-10 h-10 text-rose-600 dark:text-rose-300" />
-                </div>
+        {/* BLOCKER: fullscreen off (only if ExamGuard is active) */}
+        {guardActive && !isFullScreen && (
+          <div className="absolute inset-0 z-40 bg-slate-100/90 dark:bg-slate-950/95 backdrop-blur-sm flex flex-col items-center justify-center text-center p-4">
+            <div className="mb-5 flex items-center justify-center">
+              <div className="bg-rose-100 p-4 rounded-full border border-rose-300 dark:bg-rose-900/60 dark:border-rose-700">
+                <AlertOctagon className="w-10 h-10 text-rose-600 dark:text-rose-300" />
               </div>
-              <h1 className="text-xl md:text-2xl font-bold text-slate-900 mb-2 dark:text-slate-50">
-                Assessment Paused
-              </h1>
-              <p className="text-slate-600 mb-6 max-w-md text-sm dark:text-slate-400">
-                The test is paused because fullscreen mode was exited. Please
-                return to fullscreen to continue your exam.
-              </p>
-              <button
-                onClick={requestFullScreen}
-                className="bg-sky-600 hover:bg-sky-500 text-white px-8 py-2.5 rounded-md font-semibold shadow-sm border border-sky-500"
-              >
-                Resume in Fullscreen
-              </button>
             </div>
-          )}
+            <h1 className="text-xl md:text-2xl font-bold text-slate-900 mb-2 dark:text-slate-50">
+              Assessment Paused
+            </h1>
+            <p className="text-slate-600 mb-6 max-w-md text-sm dark:text-slate-400">
+              The test is paused because fullscreen mode was exited. Please
+              return to fullscreen to continue your exam.
+            </p>
+            <button
+              onClick={requestFullScreen}
+              className="bg-sky-600 hover:bg-sky-500 text-white px-8 py-2.5 rounded-md font-semibold shadow-sm border border-sky-500"
+            >
+              Resume in Fullscreen
+            </button>
+          </div>
+        )}
         {/* MAIN AREA */}
         <main className="flex-1 flex flex-col h-full overflow-hidden relative">
 
@@ -483,88 +483,88 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
                   flex flex-col sm:flex-row sm:items-center justify-between gap-4
                   dark:border-slate-800 dark:bg-slate-900/60">
 
-                {/* Left Section */}
-                <div className="space-y-1.5">
-                  {/* Question Heading */}
-                  <div className="flex items-baseline gap-2">
-                    <h2 className="text-lg md:text-xl font-semibold text-slate-900 dark:text-slate-50">
-                      Question {currentQIndex + 1}
-                    </h2>
-                    <span className="text-sm text-slate-500 dark:text-slate-400">
-                      / {questions.length}
-                    </span>
-                  </div>
+                  {/* Left Section */}
+                  <div className="space-y-1.5">
+                    {/* Question Heading */}
+                    <div className="flex items-baseline gap-2">
+                      <h2 className="text-lg md:text-xl font-semibold text-slate-900 dark:text-slate-50">
+                        Question {currentQIndex + 1}
+                      </h2>
+                      <span className="text-sm text-slate-500 dark:text-slate-400">
+                        / {questions.length}
+                      </span>
+                    </div>
 
-                  {/* Metadata Badges */}
-                  <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                    {/* Metadata Badges */}
+                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
 
-                    {/* Complexity */}
-                    <span
-                      className={`px-2 py-0.5 rounded-full font-medium border shadow-sm capitalize
+                      {/* Complexity */}
+                      <span
+                        className={`px-2 py-0.5 rounded-full font-medium border shadow-sm capitalize
                       ${currentQ.complexity === "hard"
-                        ? "bg-rose-100 text-rose-700 border-rose-300 dark:bg-rose-950/50 dark:text-rose-200 dark:border-rose-700"
-                        : currentQ.complexity === "medium"
-                        ? "bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-700"
-                        : "bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-700"
-                      }`}
-                    >
-                      {currentQ.complexity || "easy"}
-                    </span>
+                            ? "bg-rose-100 text-rose-700 border-rose-300 dark:bg-rose-950/50 dark:text-rose-200 dark:border-rose-700"
+                            : currentQ.complexity === "medium"
+                              ? "bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-700"
+                              : "bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-700"
+                          }`}
+                      >
+                        {currentQ.complexity || "easy"}
+                      </span>
 
-                    {/* Type */}
-                    <span
-                      className={`px-2 py-0.5 rounded-full font-medium border shadow-sm flex items-center gap-1 capitalize
+                      {/* Type */}
+                      <span
+                        className={`px-2 py-0.5 rounded-full font-medium border shadow-sm flex items-center gap-1 capitalize
                       ${currentQ.type === "multi-select"
-                        ? "bg-violet-100 text-violet-700 border-violet-300 dark:bg-violet-950/40 dark:text-violet-200 dark:border-violet-700"
-                        : "bg-sky-100 text-sky-700 border-sky-300 dark:bg-sky-950/40 dark:text-sky-200 dark:border-sky-700"
-                      }`}
-                    >
-                      {currentQ.type === "multi-select" ? (
-                        <ListFilter className="w-3 h-3" />
-                      ) : (
-                        <Circle className="w-3 h-3" />
-                      )}
-                      {currentQ.type.replace("-", " ")}
-                    </span>
+                            ? "bg-violet-100 text-violet-700 border-violet-300 dark:bg-violet-950/40 dark:text-violet-200 dark:border-violet-700"
+                            : "bg-sky-100 text-sky-700 border-sky-300 dark:bg-sky-950/40 dark:text-sky-200 dark:border-sky-700"
+                          }`}
+                      >
+                        {currentQ.type === "multi-select" ? (
+                          <ListFilter className="w-3 h-3" />
+                        ) : (
+                          <Circle className="w-3 h-3" />
+                        )}
+                        {currentQ.type.replace("-", " ")}
+                      </span>
 
-                    {/* Marks */}
-                    <span className="px-2 py-0.5 rounded-full font-medium border border-green-300 shadow-sm
+                      {/* Marks */}
+                      <span className="px-2 py-0.5 rounded-full font-medium border border-green-300 shadow-sm
                       text-green-700 dark:border-green-700 dark:text-green-200">
-                      Marks: +{currentQ.marks}
-                    </span>
+                        Marks: +{currentQ.marks}
+                      </span>
 
-                    {/* Negative Marks */}
-                    <span className="px-2 py-0.5 rounded-full font-medium border border-red-300 shadow-sm
+                      {/* Negative Marks */}
+                      <span className="px-2 py-0.5 rounded-full font-medium border border-red-300 shadow-sm
                       text-red-700 dark:border-red-700 dark:text-red-200">
-                      Negative: -{currentQ.negative_marks}
-                    </span>
+                        Negative: -{currentQ.negative_marks}
+                      </span>
 
-                    {/* Section */}
-                    <span className="px-2 py-0.5 rounded-full font-medium border border-sky-300 shadow-sm
+                      {/* Section */}
+                      <span className="px-2 py-0.5 rounded-full font-medium border border-sky-300 shadow-sm
                       text-sky-700 dark:border-sky-700 dark:text-sky-300">
-                      Section: {getSectionName(currentQ)}
-                    </span>
+                        Section: {getSectionName(currentQ)}
+                      </span>
+                    </div>
                   </div>
-                </div>
 
-                {/* Mark for Review Button */}
-                <button
-                  onClick={toggleMarkCurrent}
-                  className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs md:text-sm 
+                  {/* Mark for Review Button */}
+                  <button
+                    onClick={toggleMarkCurrent}
+                    className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs md:text-sm 
                     font-semibold border shadow-sm transition-all duration-200
                     ${markedForReview.has(currentQ.id)
-                      ? "bg-violet-600 border-violet-500 text-white dark:bg-violet-900/70 dark:border-violet-600 dark:text-violet-50"
-                      : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700"
-                    }`}
-                >
-                  <Flag
-                    className={`w-4 h-4 ${markedForReview.has(currentQ.id) ? "fill-violet-200" : ""}`}
-                  />
-                  {markedForReview.has(currentQ.id)
-                    ? "Marked for Review"
-                    : "Mark for Review"}
-                </button>
-              </div>
+                        ? "bg-violet-600 border-violet-500 text-white dark:bg-violet-900/70 dark:border-violet-600 dark:text-violet-50"
+                        : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700"
+                      }`}
+                  >
+                    <Flag
+                      className={`w-4 h-4 ${markedForReview.has(currentQ.id) ? "fill-violet-200" : ""}`}
+                    />
+                    {markedForReview.has(currentQ.id)
+                      ? "Marked for Review"
+                      : "Mark for Review"}
+                  </button>
+                </div>
 
 
 

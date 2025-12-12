@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -55,33 +56,79 @@ func Register(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "User registered successfully"})
 }
 
-func Login(c *gin.Context) {
-	var body struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}
+// LoginRequest updated to include Fingerprint
+type LoginRequest struct {
+	Email       string `json:"email"`
+	Password    string `json:"password"`
+	Fingerprint string `json:"fingerprint"` // Add this field
+}
 
-	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(400, gin.H{"error": "Invalid input"})
+func Login(c *gin.Context) {
+	var req LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
 		return
 	}
 
 	var user models.User
-	if err := database.DB.Where("email = ?", body.Email).First(&user).Error; err != nil {
-		c.JSON(401, gin.H{"error": "Invalid email or password"})
+	if err := database.DB.Where("email = ?", req.Email).First(&user).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_credentials"})
 		return
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(body.Password)); err != nil {
-		c.JSON(401, gin.H{"error": "Invalid email or password"})
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_credentials"})
 		return
 	}
+
+	// ---------------- SECURITY CHECK ----------------
+	// Check if user has an ACTIVE exam
+	var activeAttempt models.ExamAttempt
+	err := database.DB.Where("student_id = ? AND submitted_at IS NULL AND is_terminated = false", user.ID).First(&activeAttempt).Error
+
+	if err == nil {
+		// User HAS an active exam.
+		// We must ONLY allow login if it is the EXACT SAME BROWSER (Crash Recovery).
+
+		var activeSession models.UserSession
+		if err := database.DB.Where("user_id = ? AND active = true", user.ID).
+			Order("created_at desc").
+			First(&activeSession).Error; err == nil {
+
+			// 1. IP Check
+			if activeSession.IP != c.ClientIP() {
+				c.JSON(http.StatusForbidden, gin.H{
+					"error":   "exam_in_progress",
+					"message": "Login denied. Exam active on another network.",
+				})
+				return
+			}
+
+			// 2. FINGERPRINT CHECK (The Fix)
+			// If the fingerprints don't match, it means it's a
+			// DIFFERENT screen/window on the SAME computer. BLOCK IT.
+			if activeSession.DeviceFingerprint != "" && req.Fingerprint != "" {
+				if activeSession.DeviceFingerprint != req.Fingerprint {
+					c.JSON(http.StatusForbidden, gin.H{
+						"error":   "exam_in_progress",
+						"message": "Login denied. Exam active on another window/browser.",
+					})
+					return
+				}
+			}
+		}
+	}
+	// ------------------------------------------------
+
+	jti := uuid.New().String()
 
 	claims := &models.Claims{
-		UserID: user.ID.String(), // <-- MUST BE STRING UUID
+		UserID: user.ID.String(),
 		Role:   user.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(72 * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			ID:        jti,
 		},
 	}
 
@@ -89,9 +136,27 @@ func Login(c *gin.Context) {
 	jwtSecret := []byte(os.Getenv("JWT_SECRET"))
 	tokenString, err := token.SignedString(jwtSecret)
 	if err != nil {
-		c.JSON(500, gin.H{"error": "Failed to generate token"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 		return
 	}
+
+	// Invalidate previous sessions
+	if user.Role == "student" {
+		database.DB.Model(&models.UserSession{}).Where("user_id = ? AND active = true", user.ID).Update("active", false)
+	}
+
+	exp := time.Now().Add(72 * time.Hour)
+	sess := models.UserSession{
+		ID:                uuid.New(),
+		UserID:            user.ID,
+		Jti:               jti,
+		DeviceFingerprint: req.Fingerprint, // Save fingerprint for the next check
+		IP:                c.ClientIP(),
+		Active:            true,
+		CreatedAt:         time.Now(),
+		ExpiresAt:         &exp,
+	}
+	database.DB.Create(&sess)
 
 	c.JSON(200, gin.H{
 		"token": tokenString,

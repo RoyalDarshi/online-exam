@@ -66,9 +66,9 @@ type Question struct {
 	OptionD       string    `json:"option_d"`
 	CorrectAnswer string    `json:"correct_answer"` // INTERNAL ONLY
 
-	Points         int     `json:"points"`           // Score for correct answer (internal)
-	NegativePoints float64 `json:"negative_points"`  // Deduction for wrong answer (internal)
-	Complexity     string  `json:"complexity"`       // "easy","medium","hard"
+	Points         int     `json:"points"`          // Score for correct answer (internal)
+	NegativePoints float64 `json:"negative_points"` // Deduction for wrong answer (internal)
+	Complexity     string  `json:"complexity"`      // "easy","medium","hard"
 
 	OrderNumber int `json:"order_number"`
 }
@@ -83,8 +83,10 @@ func (q *Question) BeforeCreate(tx *gorm.DB) (err error) {
 type ExamAttempt struct {
 	ID uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 
-	ExamID uuid.UUID `json:"exam_id"`
-	Exam   Exam      `gorm:"foreignKey:ExamID" json:"exam"`
+	ExamID            uuid.UUID `json:"exam_id"`
+	Exam              Exam      `gorm:"foreignKey:ExamID" json:"exam"`
+	ExamToken         string    `json:"exam_token"`
+	DeviceFingerprint string    `json:"device_fingerprint"`
 
 	StudentID uuid.UUID `json:"student_id"`
 	Student   User      `gorm:"foreignKey:StudentID" json:"student,omitempty"`
@@ -106,15 +108,26 @@ type ExamAttempt struct {
 }
 
 type QuestionInput struct {
-	QuestionText  string `json:"question_text"`
-	Type          string `json:"type"`
-	Complexity    string `json:"complexity"`
-	OptionA       string `json:"option_a"`
-	OptionB       string `json:"option_b"`
-	OptionC       string `json:"option_c"`
-	OptionD       string `json:"option_d"`
-	CorrectAnswer string `json:"correct_answer"`
-	Points        int    `json:"points"`
+	QuestionText   string  `json:"question_text"`
+	Type           string  `json:"type"`
+	Complexity     string  `json:"complexity"`
+	OptionA        string  `json:"option_a"`
+	OptionB        string  `json:"option_b"`
+	OptionC        string  `json:"option_c"`
+	OptionD        string  `json:"option_d"`
+	CorrectAnswer  string  `json:"correct_answer"`
+	Points         int     `json:"points"`
 	NegativePoints float64 `json:"negative_points"`
-	OrderNumber   int    `json:"order_number"`
+	OrderNumber    int     `json:"order_number"`
+}
+
+type UserSession struct {
+	ID                uuid.UUID  `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	UserID            uuid.UUID  `gorm:"index" json:"user_id"`
+	Jti               string     `gorm:"index" json:"jti"`
+	DeviceFingerprint string     `json:"device_fingerprint"`
+	IP                string     `json:"ip"`
+	Active            bool       `gorm:"default:true" json:"active"`
+	CreatedAt         time.Time  `json:"created_at"`
+	ExpiresAt         *time.Time `json:"expires_at"`
 }

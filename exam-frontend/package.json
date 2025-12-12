@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json"
   },
   "dependencies": {
+    "@fingerprintjs/fingerprintjs": "^5.0.1",
     "@supabase/supabase-js": "^2.57.4",
     "axios": "^1.13.2",
     "lucide-react": "^0.556.0",

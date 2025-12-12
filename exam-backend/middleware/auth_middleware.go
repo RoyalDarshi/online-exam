@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"exam-backend/database"
 	"exam-backend/models"
 	"fmt"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// AuthMiddleware validates JWT and ensures the token's JTI is active in user_sessions.
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenString := c.GetHeader("Authorization")
@@ -38,10 +40,25 @@ func AuthMiddleware() gin.HandlerFunc {
 		c.Set("userID", claims.UserID)
 		c.Set("role", claims.Role)
 
+		// validate JTI (token id) exists and is active in user_sessions
+		jti := claims.ID
+		if jti != "" {
+			var sess models.UserSession
+			if err := database.DB.Where("jti = ? AND active = true", jti).First(&sess).Error; err != nil {
+				// If not found or DB error -> reject
+				c.JSON(401, gin.H{"error": "session_not_active_or_invalid"})
+				c.Abort()
+				return
+			}
+			// store jti in context for downstream use
+			c.Set("jti", jti)
+		}
+
 		c.Next()
 	}
 }
 
+// AdminOnly middleware
 func AdminOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roleVal, _ := c.Get("role")
@@ -55,6 +72,7 @@ func AdminOnly() gin.HandlerFunc {
 	}
 }
 
+// TeacherOnly middleware
 func TeacherOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role := c.GetString("role")

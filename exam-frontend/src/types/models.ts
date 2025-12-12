@@ -12,6 +12,7 @@ export type Question = {
     marks: number;
     negative_marks: number;
     order_number: number;
+    section: string;
 };
 
 export type Exam = {
@@ -23,13 +24,11 @@ export type Exam = {
     is_active: boolean;
     start_time: string; // ISO 8601 string
     end_time: string;   // ISO 8601 string
-
-    // New Negative Marking Fields
     enable_negative_marking: boolean;
     negative_mark_easy: number;
     negative_mark_medium: number;
     negative_mark_hard: number;
-
+    section_locking: boolean;
     questions?: Question[];
 };
 
@@ -45,7 +44,6 @@ export type ExamAttempt = {
     is_terminated: boolean;
     termination_reason: string | null;
     tab_switches: number;
-    // This is a computed field from the server on the student's current attempt
     time_left: number;
     exam: Exam;
 };

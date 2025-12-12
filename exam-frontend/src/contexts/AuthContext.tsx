@@ -1,10 +1,8 @@
 // src/contexts/AuthContext.tsx
-import React from 'react';
-import { createContext, useContext, useEffect, useState } from 'react';
-import { BASE_URL } from '../config';
-import axios from 'axios';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import fpPromise from '@fingerprintjs/fingerprintjs'; // <--- IMPORT THIS
+import api from '../lib/api';
 
-// Define types (You can move these to a separate types file later)
 export type User = {
   id: string;
   email: string;
@@ -27,7 +25,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in (Token exists)
     const token = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
 
@@ -37,30 +34,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
+  // ----------------------- UPDATED SIGN IN -----------------------
   async function signIn(email: string, password: string) {
-    // Call Go Backend
-    const response = await axios.post(`${BASE_URL}/auth/login`, {
-      email,
-      password
-    });
+    try {
+      // 1. Generate the Device Fingerprint
+      const fp = await fpPromise.load();
+      const result = await fp.get();
+      const visitorId = result.visitorId;
 
-    const { token, user } = response.data;
+      // 2. Send login request WITH fingerprint
+      const response = await api.post('/auth/login', {
+        email,
+        password,
+        fingerprint: visitorId // <--- Backend expects this now
+      });
 
-    // Save to LocalStorage
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-    setUser(user);
+      const { token, user } = response.data;
+
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+      setUser(user);
+    } catch (error: any) {
+      // 3. Handle specific security lock errors
+      if (error.response && error.response.status === 403) {
+        const serverError = error.response.data;
+        if (serverError.error === "exam_in_progress") {
+          // Security Alert
+          alert(`⚠️ Login Blocked: ${serverError.message}`);
+        }
+      }
+      // Re-throw so your Login form can stop the loading spinner
+      throw error;
+    }
   }
+  // ---------------------------------------------------------------
 
   async function signUp(email: string, password: string, fullName: string, role: 'admin' | 'student' | 'teacher') {
-    // Call Go Backend
-    await axios.post(`${BASE_URL}/auth/register`, {
+    await api.post('/auth/register', {
       email,
       password,
       full_name: fullName,
       role
     });
-    // Optional: Automatically login after register, or ask user to login
   }
 
   function signOut() {

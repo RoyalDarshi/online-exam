@@ -19,20 +19,41 @@ func main() {
 	}
 
 	database.Connect()
+
+	// AutoMigrate models
 	if err := database.DB.AutoMigrate(
 		&models.User{},
 		&models.Exam{},
 		&models.Question{},
 		&models.ExamAttempt{},
 		&models.QuestionBank{},
+		&models.UserSession{},
 	); err != nil {
 		log.Println("AutoMigrate error:", err)
+	}
+
+	// Create a partial unique index to prevent multiple active attempts per (exam_id, student_id).
+	// This requires Postgres. If you use another DB, remove/adjust this.
+	if err := database.DB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_active_attempt
+		ON exam_attempts (exam_id, student_id)
+		WHERE submitted_at IS NULL AND is_terminated = false;`).Error; err != nil {
+		log.Println("Could not create partial unique index (safe to ignore if not Postgres):", err)
+	}
+
+	// Initialize Redis (if configured)
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = "localhost:6379" // fallback for dev
+	}
+	if err := database.InitializeRedis(redisAddr); err != nil {
+		log.Println("Redis init failed:", err)
+		// continue in degraded mode (Redis optional)
 	}
 
 	r := gin.Default()
 
 	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"http://192.168.1.13:5173", "http://localhost:5173"}
+	config.AllowOrigins = []string{"http://192.168.1.13:5173", "http://localhost:5173", "http://192.168.1.2:5173"}
 	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization"}
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
 	r.Use(cors.New(config))
@@ -40,14 +61,15 @@ func main() {
 	// Auth
 	r.POST("/api/auth/register", controllers.Register)
 	r.POST("/api/auth/login", controllers.Login)
+	r.GET("/ws/exam", controllers.ExamWebSocket)
 
 	// Protected API
 	api := r.Group("/api")
 	api.Use(middleware.AuthMiddleware())
 	{
 		// exams (shared)
-		api.GET("/exams", controllers.GetExams)            // list (no questions)
-		api.GET("/exams/:id", controllers.GetExamDetails)  // sanitized questions
+		api.GET("/exams", controllers.GetExams)
+		api.GET("/exams/:id", controllers.GetExamDetails)
 		api.POST("/attempts/start", controllers.StartAttempt)
 		api.POST("/progress", controllers.UpdateProgress)
 		api.POST("/attempts/submit", controllers.SubmitAttempt)
@@ -63,8 +85,6 @@ func main() {
 			admin.GET("/exams/:id", controllers.AdminGetExam)
 			admin.DELETE("/exams/:id", controllers.DeleteExam)
 
-			// ✅ CHANGED: Use UpdateExam (Metadata only) instead of UpdateExamWithQuestions
-			// This prevents admins from accidentally deleting questions they can't see.
 			admin.PUT("/exams/:id", controllers.UpdateExam)
 			admin.PUT("/exams/:id/regenerate", controllers.RegenerateExam)
 

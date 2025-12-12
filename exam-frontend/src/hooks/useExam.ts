@@ -1,6 +1,7 @@
 // src/hooks/useExam.ts
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import api from "../lib/api";
+import { WS_BASE_URL } from "../config";
 import { useProctoring, requestFullScreen } from "../hooks/useProctoring";
 import { Exam, Question } from "../types/models";
 
@@ -67,6 +68,7 @@ export const useExam = (
     const [visited, setVisited] = useState<Set<string>>(new Set());
 
     const [attemptId, setAttemptId] = useState<string | null>(null);
+    const [examToken, setExamToken] = useState<string | null>(null); // NEW: Store token for WS
     const [timeLeft, setTimeLeft] = useState<number>(0);
     const [currentQIndex, setCurrentQIndex] = useState(0);
 
@@ -86,6 +88,8 @@ export const useExam = (
     const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
     const answersRef = useRef(answers);
     const warningsRef = useRef(warnings);
+    const wsRef = useRef<WebSocket | null>(null); // NEW: WebSocket ref
+    const lastViolationTime = useRef<number>(0);
 
     useEffect(() => {
         answersRef.current = answers;
@@ -94,11 +98,12 @@ export const useExam = (
         warningsRef.current = warnings;
     }, [warnings]);
 
-    // --- Init exam & attempt ---
+    // --- 1. Init exam & attempt ---
     useEffect(() => {
         let isMounted = true;
         async function initExam() {
             try {
+                // Get Exam Details
                 const examRes = await api.get(`/exams/${exam.id}`);
                 if (!isMounted) return;
 
@@ -109,16 +114,20 @@ export const useExam = (
                     setActiveSection(getSectionName(qs[0]));
                 }
 
+                // Start/Resume Attempt
+                // Backend: secure_exam.go -> StartAttempt
                 const attemptRes = await api.post("/attempts/start", {
                     exam_id: exam.id,
+                    fingerprint: navigator.userAgent // Simple fingerprint
                 });
                 if (!isMounted) return;
 
                 const attempt = attemptRes.data;
                 setAttemptId(attempt.id);
+                setExamToken(attempt.exam_token); // Capture Token
 
                 if (attempt.answers) setAnswers(attempt.answers);
-                if (attempt.time_left) setTimeLeft(attempt.time_left);
+                if (attempt.time_left !== undefined) setTimeLeft(attempt.time_left);
                 if (attempt.tab_switches) setWarnings(attempt.tab_switches);
 
                 if (attempt.submitted_at || attempt.is_terminated) {
@@ -137,11 +146,9 @@ export const useExam = (
                 setStatus("active");
             } catch (err: any) {
                 if (isMounted) {
+                    console.error("Init Error:", err);
                     setErrorMessage(err?.response?.data?.error || "Failed to load exam.");
                     setStatus("error");
-                    await fetch("http://localhost:12345/exit", {
-                        method: "POST"
-                    });
                 }
             }
         }
@@ -151,6 +158,51 @@ export const useExam = (
             isMounted = false;
         };
     }, [exam.id, onComplete]);
+
+    // --- 2. WebSocket Connection (NEW) ---
+    useEffect(() => {
+        if (!attemptId || !examToken) return;
+
+        // Backend: websocket_exam.go -> /ws/exam?attempt_id=...&token=...
+        const wsUrl = `${WS_BASE_URL}/ws/exam?attempt_id=${attemptId}&token=${examToken}`;
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
+
+        let heartbeatInterval: NodeJS.Timeout;
+
+        ws.onopen = () => {
+            console.log("Exam WS Connected");
+            // Send ping every 10s (backend timeout is ~30s)
+            heartbeatInterval = setInterval(() => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send("ping");
+                }
+            }, 10000);
+        };
+
+        ws.onmessage = (event) => {
+            const msg = event.data;
+            if (msg === "pong") return; // Heartbeat response
+
+            if (msg.startsWith("terminated")) {
+                // Backend forced termination (e.g. too many tab switches)
+                setStatus("submitting");
+                alert("Exam terminated by server due to violations.");
+                confirmSubmit("Server Termination");
+            }
+        };
+
+        ws.onerror = (err) => {
+            console.error("WS Error", err);
+        };
+
+        return () => {
+            clearInterval(heartbeatInterval);
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.close();
+            }
+        };
+    }, [attemptId, examToken]);
 
     // --- Track visitation ---
     useEffect(() => {
@@ -206,43 +258,38 @@ export const useExam = (
 
     // --- Save to backend ---
     const saveToBackend = useCallback(
-    async (currentAnswers: Record<string, string>) => {
-        if (!attemptId) return;
+        async (currentAnswers: Record<string, string>) => {
+            if (!attemptId) return;
 
-        let showSaving = true;
+            let showSaving = true;
+            const timer = setTimeout(() => {
+                if (showSaving) {
+                    setSaveStatus("saving");
+                }
+            }, 1000);
 
-        // Start a 1.5s timer to show "saving"
-        const timer = setTimeout(() => {
-            if (showSaving) {
-                setSaveStatus("saving");
+            try {
+                // API call: secure_exam.go -> UpdateProgress
+                await api.post("/progress", {
+                    attempt_id: attemptId,
+                    tab_switches: warningsRef.current,
+                    answers: currentAnswers,
+                    snapshot: "", // Add snapshot logic if needed
+                });
+
+                showSaving = false;
+                clearTimeout(timer);
+                setSaveStatus("saved");
+            } catch (error) {
+                showSaving = false;
+                clearTimeout(timer);
+                setSaveStatus("error");
             }
-        }, 1000);
+        },
+        [attemptId]
+    );
 
-        try {
-            // API call
-            await api.post("/progress", {
-                attempt_id: attemptId,
-                tab_switches: warningsRef.current,
-                answers: currentAnswers,
-                snapshot: "",
-            });
-
-            // API done → stop UI from setting saving
-            showSaving = false;
-            clearTimeout(timer);
-
-            setSaveStatus("saved"); // only appears if saving was shown OR after success
-        } catch (error) {
-            showSaving = false;
-            clearTimeout(timer);
-            setSaveStatus("error");
-        }
-    },
-    [attemptId]
-);
-
-
-    // --- Periodic snapshot ---
+    // --- Periodic autosave ---
     useEffect(() => {
         if (status !== "active") return;
         const interval = setInterval(
@@ -256,9 +303,25 @@ export const useExam = (
     const handleViolation = useCallback(
         (type: string) => {
             if (status !== "active") return;
+
+            const now = Date.now();
+            // If the last violation was less than 1 second ago, IGNORE this one.
+            if (now - lastViolationTime.current < 1000) {
+                return;
+            }
+            lastViolationTime.current = now;
+
+            // 1. Send to WebSocket (Immediate Server Action)
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                // Format must match backend expectation (json)
+                // websocket_exam.go expects: {"type": "..."}
+                wsRef.current.send(JSON.stringify({ type: "tab-switch" }));
+            }
+
+            // 2. Local State Update & Persistence
             setWarnings((prev) => {
                 const newW = prev + 1;
-                saveToBackend(answersRef.current);
+                saveToBackend(answersRef.current); // Force save on violation
                 if (newW >= MAX_WARNINGS) {
                     setShowSubmitModal(false);
                     setStatus("submitting");
@@ -355,17 +418,23 @@ export const useExam = (
         if (!attemptId) return;
         try {
             if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+            // 1. Final Save of Answers
             await saveToBackend(answersRef.current);
-            await api.post("/attempts/submit", { attempt_id: attemptId, reason });
+
+            // 2. Submit Signal
+            await api.post("/attempts/submit", { attempt_id: attemptId });
+
             if (document.fullscreenElement) {
                 document.exitFullscreen().catch(() => { });
             }
             onComplete();
-            await fetch("http://localhost:12345/exit", {
-                method: "POST"
-            });
 
-            alert("Exam Completed");
+            // Clean exit call (if using external ExamGuard)
+            try {
+                await fetch("http://localhost:12345/exit", { method: "POST" });
+            } catch (e) { /* ignore if not running local guard */ }
+
+            alert("Exam Completed Successfully");
         } catch {
             setErrorMessage("Submission failed. Please check connection.");
             setStatus("active");
