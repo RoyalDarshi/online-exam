@@ -32,7 +32,7 @@ func main() {
 	r := gin.Default()
 
 	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"http://192.168.1.9:5173", "http://localhost:5173"}
+	config.AllowOrigins = []string{"http://192.168.1.13:5173", "http://localhost:5173"}
 	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization"}
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
 	r.Use(cors.New(config))
@@ -46,13 +46,11 @@ func main() {
 	api.Use(middleware.AuthMiddleware())
 	{
 		// exams (shared)
-		api.GET("/exams", controllers.GetExams)
-		api.GET("/exams/:id", controllers.GetExamDetails)
-
-		// attempts (student)
+		api.GET("/exams", controllers.GetExams)            // list (no questions)
+		api.GET("/exams/:id", controllers.GetExamDetails)  // sanitized questions
 		api.POST("/attempts/start", controllers.StartAttempt)
-		api.POST("/attempts/submit", controllers.SubmitAttempt)
 		api.POST("/progress", controllers.UpdateProgress)
+		api.POST("/attempts/submit", controllers.SubmitAttempt)
 		api.GET("/attempts/:id", controllers.GetAttemptDetails)
 		api.GET("/student/attempts", controllers.GetStudentAttempts)
 

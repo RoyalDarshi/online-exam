@@ -139,6 +139,9 @@ export const useExam = (
                 if (isMounted) {
                     setErrorMessage(err?.response?.data?.error || "Failed to load exam.");
                     setStatus("error");
+                    await fetch("http://localhost:12345/exit", {
+                        method: "POST"
+                    });
                 }
             }
         }
