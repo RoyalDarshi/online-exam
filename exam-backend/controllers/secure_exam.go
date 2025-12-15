@@ -116,7 +116,7 @@ func StartAttempt(c *gin.Context) {
 	}
 
 	// simple scheduling checks
-	now := time.Now()
+	now := time.Now().In(istLocation)
 	if !exam.StartTime.IsZero() && now.Before(exam.StartTime) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "exam_not_started", "start_time": exam.StartTime})
 		return
@@ -125,7 +125,11 @@ func StartAttempt(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "exam_closed"})
 		return
 	}
-
+	// user can not start exam after 5 min of delay
+	if !exam.StartTime.IsZero() && now.After(exam.StartTime.Add(5*time.Minute)) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "exam_delayed"})
+		return
+	}
 	uidVal, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not in context"})
@@ -360,6 +364,11 @@ func SubmitAttempt(c *gin.Context) {
 	attempt.Passed = percentage >= float64(attempt.Exam.PassingScore)
 
 	now := nowIST()
+	gracePeriod := time.Duration(2) * time.Minute
+	if !attempt.Exam.EndTime.IsZero() && now.After(attempt.Exam.EndTime.Add(gracePeriod)) {
+		attempt.IsTerminated = true
+		attempt.TerminationReason = "Time limit exceeded (Server validation)"
+	}
 	attempt.SubmittedAt = &now
 
 	if err := database.DB.Save(&attempt).Error; err != nil {
