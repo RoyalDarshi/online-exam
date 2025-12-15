@@ -4,6 +4,7 @@ import (
 	"errors"
 	"exam-backend/database"
 	"exam-backend/models"
+	"math"
 	"net/http"
 	"sort"
 	"strings"
@@ -93,7 +94,6 @@ func GetExamDetails(c *gin.Context) {
 }
 
 // ------------------------- START ATTEMPT (student) -------------------------
-// StartAttempt creates or resumes an exam attempt and returns an exam_token for WS connection.
 func StartAttempt(c *gin.Context) {
 	var input struct {
 		ExamID      string `json:"exam_id"`
@@ -180,9 +180,7 @@ func StartAttempt(c *gin.Context) {
 		return
 	}
 
-	// 2) [NEW SECURITY CHECK] Look for ANY past attempt (Submitted or Terminated)
-	// If we are here, step 1 failed, meaning no active attempt exists.
-	// So if we find ANY record now, it MUST be a finished/failed one.
+	// 2) Look for ANY past attempt (Submitted or Terminated)
 	var oldAttempt models.ExamAttempt
 	if err := tx.
 		Where("student_id = ? AND exam_id = ?", userID, examUUID).
@@ -239,9 +237,8 @@ func StartAttempt(c *gin.Context) {
 	})
 }
 
-// computeTimeLeftSeconds: helper calculates remaining seconds based on exam duration or per-attempt time-left
+// computeTimeLeftSeconds: helper calculates remaining seconds
 func computeTimeLeftSeconds(exam models.Exam, attempt models.ExamAttempt) int64 {
-	// example: use exam.DurationMinutes as time limit
 	if exam.DurationMinutes <= 0 {
 		return 0
 	}
@@ -285,23 +282,23 @@ func UpdateProgress(c *gin.Context) {
 
 	// Merge answers (server-side truth)
 	if input.Answers != nil {
-		// Overwrite server map with incoming answers for those keys
+		if attempt.Answers == nil {
+			attempt.Answers = make(map[string]string)
+		}
 		for k, v := range input.Answers {
-			// basic normalization
 			attempt.Answers[k] = v
 		}
 	}
 
-	// Append snapshot if provided (keep small — real system should store blobs externally)
+	// Append snapshot if provided
 	if input.Snapshot != "" {
 		attempt.Snapshots = append(attempt.Snapshots, input.Snapshot)
-		// optional: limit number of snapshots kept
 		if len(attempt.Snapshots) > 50 {
 			attempt.Snapshots = attempt.Snapshots[len(attempt.Snapshots)-50:]
 		}
 	}
 
-	// Tab-switch enforcement (example threshold; you can configure)
+	// Tab-switch enforcement
 	const MAX_TAB_SWITCHES = 5
 	if input.TabSwitches > attempt.TabSwitches {
 		attempt.TabSwitches = input.TabSwitches
@@ -316,10 +313,7 @@ func UpdateProgress(c *gin.Context) {
 		return
 	}
 
-	// IMPORTANT: Do NOT return attempt.Answers or snapshots to client while exam ongoing
-	c.JSON(http.StatusOK, gin.H{
-		"status": "ok",
-	})
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
 // ------------------------- SUBMIT ATTEMPT (student) -------------------------
@@ -349,7 +343,7 @@ func SubmitAttempt(c *gin.Context) {
 		return
 	}
 
-	// Evaluate server-side using the saved attempt.Answers (server's source-of-truth)
+	// Evaluate score using robust logic
 	score, total := evaluateScore(attempt.Exam, attempt.Answers)
 
 	attempt.Score = score
@@ -360,7 +354,6 @@ func SubmitAttempt(c *gin.Context) {
 		percentage = (float64(score) / float64(total)) * 100
 	}
 
-	// Check if percentage >= PassingScore (assuming PassingScore is e.g., 33, 40, 50)
 	attempt.Passed = percentage >= float64(attempt.Exam.PassingScore)
 
 	now := nowIST()
@@ -385,7 +378,7 @@ func SubmitAttempt(c *gin.Context) {
 	})
 }
 
-// ------------------------- ADMIN: GetAttemptDetails (full access) -------------------------
+// ------------------------- ADMIN: GetAttemptDetails -------------------------
 func GetAttemptDetails(c *gin.Context) {
 	id := c.Param("id")
 
@@ -395,14 +388,12 @@ func GetAttemptDetails(c *gin.Context) {
 		return
 	}
 
-	// Only admins or the owner (after submission) can see answers
 	roleVal, _ := c.Get("role")
 	role, _ := roleVal.(string)
 	uidVal, _ := c.Get("userID")
 	userIDStr, _ := uidVal.(string)
 
 	if role != "admin" && role != "teacher" {
-		// student: only allow if attempt.SubmittedAt != nil and belongs to them
 		if attempt.SubmittedAt == nil || userIDStr != attempt.StudentID.String() {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
@@ -412,12 +403,12 @@ func GetAttemptDetails(c *gin.Context) {
 	c.JSON(http.StatusOK, attempt)
 }
 
-// ------------------------- Evaluation helper -------------------------
+// ------------------------- Evaluation helper (Robust) -------------------------
 func evaluateScore(exam models.Exam, answers map[string]string) (int, int) {
 	totalPoints := 0
-	score := 0
+	var finalScore float64 = 0.0 // Use float for precise negative marking calculation
 
-	// Build a map for quick lookup
+	// Map to find questions easily
 	qmap := map[string]models.Question{}
 	for _, q := range exam.Questions {
 		qmap[q.ID.String()] = q
@@ -426,55 +417,82 @@ func evaluateScore(exam models.Exam, answers map[string]string) (int, int) {
 
 	for qid, given := range answers {
 		q, ok := qmap[qid]
-		if !ok {
-			continue
+		if !ok || given == "" {
+			continue // Skip invalid or empty answers
 		}
-		// normalize
-		givenTrim := strings.TrimSpace(strings.ToLower(given))
-		correct := strings.TrimSpace(strings.ToLower(q.CorrectAnswer))
 
-		if q.Type == "multi-select" {
-			// treat as unordered set of comma-separated tokens
-			givenSet := make(map[string]bool)
-			for _, p := range strings.Split(givenTrim, ",") {
-				if s := strings.TrimSpace(p); s != "" {
-					givenSet[s] = true
-				}
+		// Normalize Input
+		givenClean := strings.ToLower(strings.TrimSpace(given))
+		correctClean := strings.ToLower(strings.TrimSpace(q.CorrectAnswer))
+
+		isCorrect := false
+
+		switch q.Type {
+		case "multi-select":
+			// Split by comma, trim, sort, rejoin
+			userParts := splitAndTrim(givenClean)
+			correctParts := splitAndTrim(correctClean)
+
+			sort.Strings(userParts)
+			sort.Strings(correctParts)
+
+			userStr := strings.Join(userParts, ",")
+			correctStr := strings.Join(correctParts, ",")
+
+			if userStr == correctStr {
+				isCorrect = true
 			}
-			correctSet := make(map[string]bool)
-			for _, p := range strings.Split(correct, ",") {
-				if s := strings.TrimSpace(p); s != "" {
-					correctSet[s] = true
-				}
+
+		case "true-false":
+			// Explicit boolean check logic
+			// normalize: "true" == "true", "t" == "t"
+			if givenClean == correctClean {
+				isCorrect = true
 			}
-			// equality check
-			equal := len(givenSet) == len(correctSet)
-			if equal {
-				for k := range givenSet {
-					if !correctSet[k] {
-						equal = false
-						break
-					}
-				}
+
+		case "descriptive":
+			// Strict match (case-insensitive)
+			// Note: Usually descriptive needs manual grading.
+			// Here we auto-grade based on exact keyword match provided in 'CorrectAnswer'
+			if givenClean == correctClean {
+				isCorrect = true
 			}
-			if equal {
-				score += q.Points
-			} else if exam.EnableNegativeMarking {
-				// Deduct (rounded to nearest int)
-				score -= int(q.NegativePoints)
+
+		default:
+			// "single-choice" and others
+			if givenClean == correctClean {
+				isCorrect = true
 			}
+		}
+
+		// Apply Points
+		if isCorrect {
+			finalScore += float64(q.Points)
 		} else {
-			if givenTrim == correct {
-				score += q.Points
-			} else if exam.EnableNegativeMarking {
-				score -= int(q.NegativePoints)
+			if exam.EnableNegativeMarking {
+				finalScore -= q.NegativePoints
 			}
 		}
 	}
 
-	// ensure non-negative score
-	if score < 0 {
-		score = 0
+	// Floor at 0
+	if finalScore < 0 {
+		finalScore = 0
 	}
-	return score, totalPoints
+
+	// Return rounded integer score
+	return int(math.Round(finalScore)), totalPoints
+}
+
+// Helper for multi-select splitting
+func splitAndTrim(s string) []string {
+	parts := strings.Split(s, ",")
+	var cleaned []string
+	for _, p := range parts {
+		t := strings.TrimSpace(p)
+		if t != "" {
+			cleaned = append(cleaned, t)
+		}
+	}
+	return cleaned
 }

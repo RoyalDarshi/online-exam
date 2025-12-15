@@ -103,6 +103,7 @@ export function StudentDashboard() {
           setReviewAttempt(null);
           setView("list");
         }}
+        mode="admin"
       />
     );
   }

@@ -72,6 +72,7 @@ export function UploadWizard({ onCancel, onSuccess }: Props) {
     }
 
     // --- Handlers ---
+    // --- Handlers ---
     async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -87,8 +88,11 @@ export function UploadWizard({ onCancel, onSuccess }: Props) {
         }
 
         const rows = json.map((r, i) => {
-            // Helper to get case-insensitive key
-            const get = (key: string) => (r[key] || r[key.toLowerCase()] || r[key.toUpperCase()] || "").toString().trim();
+            // FIX: Use nullish coalescing (??) or explicit check to preserve 0 and false
+            const get = (key: string) => {
+                const val = r[key] ?? r[key.toLowerCase()] ?? r[key.toUpperCase()];
+                return (val !== undefined && val !== null) ? String(val).trim() : "";
+            };
 
             const base: PreviewRow = {
                 id: crypto.randomUUID(),
@@ -98,10 +102,10 @@ export function UploadWizard({ onCancel, onSuccess }: Props) {
                 topic: get("Topic"),
                 type: get("Type") || "single-choice",
                 question: get("Question") || get("QuestionText"),
-                option1: get("Option1"),
-                option2: get("Option2"),
-                option3: get("Option3"),
-                option4: get("Option4"),
+                option1: get("A"),
+                option2: get("B"),
+                option3: get("C"),
+                option4: get("D"),
                 correct: get("Correct"),
                 errors: [],
             };
