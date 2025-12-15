@@ -93,7 +93,7 @@ func main() {
 			admin.POST("/exams/preview", controllers.ExamBankPreview)
 
 			admin.GET("/bank/subjects", controllers.AdminGetSubjects)
-			admin.GET("/bank/subjects/:subject/topics", controllers.AdminGetTopicsForSubject)
+			admin.GET("/bank/topics/:subject", controllers.AdminGetTopicsForSubject)
 		}
 
 		teacher := api.Group("/teacher")

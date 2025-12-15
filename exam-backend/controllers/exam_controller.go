@@ -21,15 +21,15 @@ type ExamUpsertRequest struct {
 	DurationMinutes int       `json:"duration_minutes"`
 	PassingScore    int       `json:"passing_score"`
 	StartTime       time.Time `json:"start_time"`
-	IsActive        *bool     `json:"is_active"` // Pointer to handle false vs nil
+	IsActive        *bool     `json:"is_active"`
 
 	// --- Question Generation Configuration ---
-	// If TotalQuestions > 0, the backend will generate/regenerate questions
 	TotalQuestions int      `json:"total_questions"`
-	Topics         []string `json:"topics"`
+	Topics         []string `json:"topics"`         // List of selected topics
+	QuestionTypes  []string `json:"question_types"` // e.g. ["MCQ", "TrueFalse"]
 
 	Difficulty struct {
-		Easy   int `json:"easy"`   // Percentage (0-100)
+		Easy   int `json:"easy"`   // Percentage
 		Medium int `json:"medium"` // Percentage
 		Hard   int `json:"hard"`   // Percentage
 	} `json:"difficulty"`
@@ -82,17 +82,19 @@ type SubjectSummary struct {
 }
 
 type TopicSummary struct {
-	Topic  string `json:"topic"`
-	Easy   int    `json:"easy"`
-	Medium int    `json:"medium"`
-	Hard   int    `json:"hard"`
-	Total  int    `json:"total"`
+	Topic  string         `json:"topic"`
+	Easy   int            `json:"easy"`
+	Medium int            `json:"medium"`
+	Hard   int            `json:"hard"`
+	Total  int            `json:"total"`
+	Types  map[string]int `json:"types"` // Breakdown of question types
 }
 
 // ----------------------
 // HELPER: Generator Logic
 // ----------------------
 
+// GET /api/admin/bank/topics/:subject
 func AdminGetTopicsForSubject(c *gin.Context) {
 	subject := c.Param("subject")
 	var records []models.QuestionBank
@@ -102,17 +104,26 @@ func AdminGetTopicsForSubject(c *gin.Context) {
 	}
 
 	byTopic := map[string]*TopicSummary{}
+
 	for _, q := range records {
 		t := q.Topic
 		if t == "" {
 			t = "Uncategorized"
 		}
+
+		// Initialize topic entry if missing
 		entry, ok := byTopic[t]
 		if !ok {
-			entry = &TopicSummary{Topic: t}
+			entry = &TopicSummary{
+				Topic: t,
+				Types: make(map[string]int),
+			}
 			byTopic[t] = entry
 		}
+
 		entry.Total++
+
+		// Count Difficulty
 		switch strings.ToLower(q.Complexity) {
 		case "easy":
 			entry.Easy++
@@ -121,6 +132,13 @@ func AdminGetTopicsForSubject(c *gin.Context) {
 		case "hard":
 			entry.Hard++
 		}
+
+		// Count Type (e.g., MCQ, Code, boolean)
+		qType := q.Type
+		if qType == "" {
+			qType = "Standard"
+		}
+		entry.Types[qType]++
 	}
 
 	out := make([]TopicSummary, 0, len(byTopic))
@@ -147,9 +165,17 @@ func generateQuestionsFromBank(tx *gorm.DB, examID uuid.UUID, req ExamUpsertRequ
 	// 1. Fetch Candidates
 	var bank []models.QuestionBank
 	query := tx.Where("subject = ?", req.Subject)
+
+	// Filter by Topic if provided
 	if len(req.Topics) > 0 {
 		query = query.Where("topic IN ?", req.Topics)
 	}
+
+	// Filter by Type if provided (New Feature)
+	if len(req.QuestionTypes) > 0 {
+		query = query.Where("type IN ?", req.QuestionTypes)
+	}
+
 	if err := query.Find(&bank).Error; err != nil {
 		return err
 	}
@@ -171,11 +197,12 @@ func generateQuestionsFromBank(tx *gorm.DB, examID uuid.UUID, req ExamUpsertRequ
 	total := req.TotalQuestions
 	needEasy := int(float64(total) * float64(req.Difficulty.Easy) / 100.0)
 	needMedium := int(float64(total) * float64(req.Difficulty.Medium) / 100.0)
-	needHard := total - needEasy - needMedium // Remainder goes to hard to ensure sum matches
+	needHard := total - needEasy - needMedium
 
 	// 4. Validate Availability
 	if len(easyQs) < needEasy || len(medQs) < needMedium || len(hardQs) < needHard {
-		return gorm.ErrInvalidData // Or custom error "Not enough questions"
+		// More descriptive error can be returned here if needed
+		return gorm.ErrInvalidData
 	}
 
 	// 5. Shuffle & Pick
