@@ -71,6 +71,10 @@ export function UploadWizard({ onCancel, onSuccess }: Props) {
         return errors;
     }
 
+    function generateId() {
+        return Date.now().toString(36) + Math.random().toString(36).substring(2);
+    }
+
     // --- Handlers ---
     // --- Handlers ---
     async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -95,17 +99,17 @@ export function UploadWizard({ onCancel, onSuccess }: Props) {
             };
 
             const base: PreviewRow = {
-                id: crypto.randomUUID(),
+                id: generateId(),
                 rowIndex: i + 2, // Excel row number (1-based + header)
                 subject: get("Subject"),
                 complexity: get("Complexity") || "medium",
                 topic: get("Topic"),
                 type: get("Type") || "single-choice",
                 question: get("Question") || get("QuestionText"),
-                option1: get("A"),
-                option2: get("B"),
-                option3: get("C"),
-                option4: get("D"),
+                option1: get("A") || get("option1"),
+                option2: get("B") || get("Option2"),
+                option3: get("C") || get("Option3"),
+                option4: get("D") || get("Option4"),
                 correct: get("Correct"),
                 errors: [],
             };

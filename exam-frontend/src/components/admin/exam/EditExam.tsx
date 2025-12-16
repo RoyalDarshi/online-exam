@@ -1,3 +1,4 @@
+//
 import React from "react";
 import api from "../../../lib/api";
 import { WizardHeader } from "../../admin/wizard/WizardHeader";
@@ -22,6 +23,10 @@ export function EditExam({ examId, onBack, onSaved }: {
     const [subject, setSubject] = React.useState("");
     const [totalQuestions, setTotalQuestions] = React.useState(0);
     const [targetTotalMarks, setTargetTotalMarks] = React.useState(0);
+
+    // NEW: Missing Filter States added here
+    const [selectedTopics, setSelectedTopics] = React.useState<string[]>([]);
+    const [selectedTypes, setSelectedTypes] = React.useState<string[]>([]);
 
     const [pts, setPts] = React.useState({ easy: 1, medium: 2, hard: 5 });
     const [enableNeg, setEnableNeg] = React.useState(false);
@@ -56,6 +61,11 @@ export function EditExam({ examId, onBack, onSaved }: {
 
             // Pre-fill form
             setSubject(ex.subject);
+
+            // Pre-fill Filters (safely default to empty array if missing)
+            setSelectedTopics(ex.topics || []);
+            setSelectedTypes(ex.question_types || []);
+
             setMeta({
                 title: ex.title,
                 desc: ex.description,
@@ -135,6 +145,9 @@ export function EditExam({ examId, onBack, onSaved }: {
             const payload = {
                 subject,
                 total_questions: totalQuestions,
+                // Include the new filters in the payload
+                topics: selectedTopics,
+                question_types: selectedTypes,
                 difficulty: {
                     easy: Math.round((counts.easy / totalQuestions) * 100),
                     medium: Math.round((counts.medium / totalQuestions) * 100),
@@ -152,13 +165,10 @@ export function EditExam({ examId, onBack, onSaved }: {
 
             const res = await api.put(`/admin/exams/${examId}`, payload);
 
-            // 🚀 ACCEPT ANY 200 RESPONSE AS SUCCESS
             if (res.status === 200) {
                 onSaved();
                 return;
             }
-
-            // any unexpected status:
             console.warn("Unexpected response:", res);
             onSaved();
 
@@ -169,7 +179,6 @@ export function EditExam({ examId, onBack, onSaved }: {
             setLoading(false);
         }
     }
-
 
     if (loading && !exam) {
         return (
@@ -193,7 +202,7 @@ export function EditExam({ examId, onBack, onSaved }: {
                     flex flex-col
                 ">
 
-                    {/* TCS Header (SAME AS CREATE WIZARD) */}
+                    {/* TCS Header */}
                     <WizardHeader
                         step={step}
                         onBack={step === 1 ? onBack : () => setStep(1)}
@@ -239,6 +248,12 @@ export function EditExam({ examId, onBack, onSaved }: {
                                 loading={loading}
                                 onNext={verifyDesign}
                                 currentTotalQs={currentTotalQs}
+
+                                // NEW: Pass the required props here
+                                selectedTopics={selectedTopics}
+                                setSelectedTopics={setSelectedTopics}
+                                selectedTypes={selectedTypes}
+                                setSelectedTypes={setSelectedTypes}
                             />
                         ) : (
                             <StepSchedule

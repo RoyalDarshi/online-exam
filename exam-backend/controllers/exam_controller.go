@@ -90,6 +90,19 @@ type TopicSummary struct {
 	Types  map[string]int `json:"types"` // Breakdown of question types
 }
 
+type DifficultyStats struct {
+	Easy   int `json:"easy"`
+	Medium int `json:"medium"`
+	Hard   int `json:"hard"`
+	Total  int `json:"total"`
+}
+
+type TopicDetail struct {
+	Topic   string                      `json:"topic"`
+	Overall DifficultyStats             `json:"overall"` // Total stats for this topic
+	ByType  map[string]*DifficultyStats `json:"by_type"` // Stats broken down by Question Type
+}
+
 // ----------------------
 // HELPER: Generator Logic
 // ----------------------
@@ -103,48 +116,58 @@ func AdminGetTopicsForSubject(c *gin.Context) {
 		return
 	}
 
-	byTopic := map[string]*TopicSummary{}
+	// Map: TopicName -> TopicDetail
+	topicMap := make(map[string]*TopicDetail)
 
 	for _, q := range records {
-		t := q.Topic
-		if t == "" {
-			t = "Uncategorized"
+		tName := q.Topic
+		if tName == "" {
+			tName = "Uncategorized"
 		}
 
-		// Initialize topic entry if missing
-		entry, ok := byTopic[t]
-		if !ok {
-			entry = &TopicSummary{
-				Topic: t,
-				Types: make(map[string]int),
-			}
-			byTopic[t] = entry
-		}
-
-		entry.Total++
-
-		// Count Difficulty
-		switch strings.ToLower(q.Complexity) {
-		case "easy":
-			entry.Easy++
-		case "medium":
-			entry.Medium++
-		case "hard":
-			entry.Hard++
-		}
-
-		// Count Type (e.g., MCQ, Code, boolean)
 		qType := q.Type
 		if qType == "" {
 			qType = "Standard"
 		}
-		entry.Types[qType]++
+
+		// Ensure Topic Entry exists
+		if _, ok := topicMap[tName]; !ok {
+			topicMap[tName] = &TopicDetail{
+				Topic:  tName,
+				ByType: make(map[string]*DifficultyStats),
+			}
+		}
+		tEntry := topicMap[tName]
+
+		// Ensure Type Entry exists for this Topic
+		if _, ok := tEntry.ByType[qType]; !ok {
+			tEntry.ByType[qType] = &DifficultyStats{}
+		}
+		typeStats := tEntry.ByType[qType]
+
+		// Increment Counts (Granular)
+		typeStats.Total++
+		tEntry.Overall.Total++
+
+		switch strings.ToLower(q.Complexity) {
+		case "easy":
+			typeStats.Easy++
+			tEntry.Overall.Easy++
+		case "medium":
+			typeStats.Medium++
+			tEntry.Overall.Medium++
+		case "hard":
+			typeStats.Hard++
+			tEntry.Overall.Hard++
+		}
 	}
 
-	out := make([]TopicSummary, 0, len(byTopic))
-	for _, v := range byTopic {
+	// Convert map to slice
+	out := make([]TopicDetail, 0, len(topicMap))
+	for _, v := range topicMap {
 		out = append(out, *v)
 	}
+
 	c.JSON(http.StatusOK, out)
 }
 
