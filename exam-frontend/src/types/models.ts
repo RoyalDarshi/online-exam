@@ -24,6 +24,10 @@ export type Exam = {
     is_active: boolean;
     start_time: string; // ISO 8601 string
     end_time: string;   // ISO 8601 string
+    subject: string;
+    marks_easy: number;
+    marks_medium: number;
+    marks_hard: number;
     enable_negative_marking: boolean;
     negative_mark_easy: number;
     negative_mark_medium: number;
