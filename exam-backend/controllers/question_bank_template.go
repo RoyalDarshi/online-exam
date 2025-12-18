@@ -48,7 +48,7 @@ func TeacherDownloadTemplate(c *gin.Context) {
 	// Type Dropdown (Column D)
 	dvType := excelize.NewDataValidation(true)
 	dvType.Sqref = "D2:D1000"
-	dvType.SetDropList([]string{"single-choice", "multi-select", "true-false", "descriptive"})
+	dvType.SetDropList([]string{"single-choice", "multi-select", "true-false"})
 	if err := f.AddDataValidation(sheet, dvType); err != nil {
 		// Log error
 	}
@@ -60,7 +60,7 @@ func TeacherDownloadTemplate(c *gin.Context) {
 		{[]string{"Math", "easy", "Algebra", "single-choice", "What is 2+2?", "4", "3", "5", "6", "A"}},
 		{[]string{"Science", "medium", "Physics", "multi-select", "Select SI units", "Meter", "Second", "Liter", "Foot", "A,B"}},
 		{[]string{"History", "easy", "World War", "true-false", "WW2 ended in 1945.", "", "", "", "", "True"}},
-		{[]string{"English", "hard", "Essay", "descriptive", "Write about nature.", "", "", "", "", ""}},
+		// {[]string{"English", "hard", "Essay", "descriptive", "Write about nature.", "", "", "", "", ""}},
 	}
 
 	for r, ex := range examples {

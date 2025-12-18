@@ -12,16 +12,16 @@ import {
 } from "lucide-react";
 
 // --- Types ---
-type QuestionType = "single-choice" | "multi-select" | "true-false" | "descriptive";
+type QuestionType = "single-choice" | "multi-select" | "true-false";
 type Complexity = "easy" | "medium" | "hard";
 
 type PreviewRow = {
     id: string; // unique ID for React keys
     rowIndex: number;
     subject: string;
-    complexity: string;
+    complexity: Complexity;
     topic: string;
-    type: string;
+    type: QuestionType;
     question: string;
     option1: string;
     option2: string;
@@ -49,7 +49,7 @@ export function UploadWizard({ onCancel, onSuccess }: Props) {
 
         // Normalize inputs for validation
         const type = row.type.toLowerCase().trim();
-        const validTypes = ["single-choice", "multi-select", "true-false", "descriptive"];
+        const validTypes = ["single-choice", "multi-select", "true-false"];
 
         if (!validTypes.includes(type)) {
             errors.push("Invalid type (use single-choice, true-false, etc)");
@@ -57,15 +57,13 @@ export function UploadWizard({ onCancel, onSuccess }: Props) {
 
         // Context-aware validation
         if (type === "single-choice" || type === "multi-select") {
-            if (!row.option1 || !row.option2) errors.push("Requires at least Option 1 & 2");
+            if (!row.option1 || !row.option2 || !row.option3 || !row.option4) errors.push("Requires all options");
             if (!row.correct) errors.push("Correct answer missing");
         } else if (type === "true-false") {
             const ans = row.correct.toLowerCase().trim();
             if (ans !== "true" && ans !== "false") {
                 errors.push("Correct answer must be 'true' or 'false'");
             }
-        } else if (type === "descriptive") {
-            // Descriptive only needs question text, which is checked at top
         }
 
         return errors;
@@ -102,9 +100,9 @@ export function UploadWizard({ onCancel, onSuccess }: Props) {
                 id: generateId(),
                 rowIndex: i + 2, // Excel row number (1-based + header)
                 subject: get("Subject"),
-                complexity: get("Complexity") || "medium",
+                complexity: get("Complexity") as Complexity || "medium",
                 topic: get("Topic"),
-                type: get("Type") || "single-choice",
+                type: get("Type") as QuestionType || "single-choice",
                 question: get("Question") || get("QuestionText"),
                 option1: get("A") || get("option1"),
                 option2: get("B") || get("Option2"),
@@ -303,7 +301,6 @@ export function UploadWizard({ onCancel, onSuccess }: Props) {
                                         <option value="single-choice">Single Choice</option>
                                         <option value="multi-select">Multi Select</option>
                                         <option value="true-false">True / False</option>
-                                        <option value="descriptive">Descriptive</option>
                                     </select>
                                     <select
                                         className="w-full p-1 border rounded text-xs bg-transparent dark:border-slate-700"
@@ -340,64 +337,58 @@ export function UploadWizard({ onCancel, onSuccess }: Props) {
 
                                 {/* Options & Correct Answer */}
                                 <td className="p-3 align-top space-y-1">
-                                    {row.type !== "descriptive" && (
-                                        <>
-                                            <div className="grid grid-cols-2 gap-1">
-                                                {row.type !== "true-false" && (
-                                                    <>
-                                                        <input
-                                                            className="p-1 border rounded text-xs bg-transparent dark:border-slate-700"
-                                                            placeholder="Option 1"
-                                                            value={row.option1}
-                                                            onChange={(e) => updateRow(row.id, "option1", e.target.value)}
-                                                        />
-                                                        <input
-                                                            className="p-1 border rounded text-xs bg-transparent dark:border-slate-700"
-                                                            placeholder="Option 2"
-                                                            value={row.option2}
-                                                            onChange={(e) => updateRow(row.id, "option2", e.target.value)}
-                                                        />
-                                                        <input
-                                                            className="p-1 border rounded text-xs bg-transparent dark:border-slate-700"
-                                                            placeholder="Option 3"
-                                                            value={row.option3}
-                                                            onChange={(e) => updateRow(row.id, "option3", e.target.value)}
-                                                        />
-                                                        <input
-                                                            className="p-1 border rounded text-xs bg-transparent dark:border-slate-700"
-                                                            placeholder="Option 4"
-                                                            value={row.option4}
-                                                            onChange={(e) => updateRow(row.id, "option4", e.target.value)}
-                                                        />
-                                                    </>
-                                                )}
-                                            </div>
-                                            <div className="pt-2">
-                                                <label className="text-xs font-semibold text-slate-500 block mb-1">Correct Answer:</label>
-                                                {row.type === "true-false" ? (
-                                                    <select
-                                                        className="w-full p-1 border rounded text-xs bg-transparent dark:border-slate-700"
-                                                        value={row.correct.toLowerCase()}
-                                                        onChange={(e) => updateRow(row.id, "correct", e.target.value)}
-                                                    >
-                                                        <option value="">Select...</option>
-                                                        <option value="true">True</option>
-                                                        <option value="false">False</option>
-                                                    </select>
-                                                ) : (
-                                                    <input
-                                                        className="w-full p-1 border rounded text-xs bg-transparent dark:border-slate-700"
-                                                        placeholder="Answer Key (e.g. Option 1)"
-                                                        value={row.correct}
-                                                        onChange={(e) => updateRow(row.id, "correct", e.target.value)}
-                                                    />
-                                                )}
-                                            </div>
-                                        </>
-                                    )}
-                                    {row.type === "descriptive" && (
-                                        <p className="text-xs text-slate-400 italic">No options for descriptive questions.</p>
-                                    )}
+
+                                    <div className="grid grid-cols-2 gap-1">
+                                        {row.type !== "true-false" && (
+                                            <>
+                                                <input
+                                                    className="p-1 border rounded text-xs bg-transparent dark:border-slate-700"
+                                                    placeholder="Option 1"
+                                                    value={row.option1}
+                                                    onChange={(e) => updateRow(row.id, "option1", e.target.value)}
+                                                />
+                                                <input
+                                                    className="p-1 border rounded text-xs bg-transparent dark:border-slate-700"
+                                                    placeholder="Option 2"
+                                                    value={row.option2}
+                                                    onChange={(e) => updateRow(row.id, "option2", e.target.value)}
+                                                />
+                                                <input
+                                                    className="p-1 border rounded text-xs bg-transparent dark:border-slate-700"
+                                                    placeholder="Option 3"
+                                                    value={row.option3}
+                                                    onChange={(e) => updateRow(row.id, "option3", e.target.value)}
+                                                />
+                                                <input
+                                                    className="p-1 border rounded text-xs bg-transparent dark:border-slate-700"
+                                                    placeholder="Option 4"
+                                                    value={row.option4}
+                                                    onChange={(e) => updateRow(row.id, "option4", e.target.value)}
+                                                />
+                                            </>
+                                        )}
+                                    </div>
+                                    <div className="pt-2">
+                                        <label className="text-xs font-semibold text-slate-500 block mb-1">Correct Answer:</label>
+                                        {row.type === "true-false" ? (
+                                            <select
+                                                className="w-full p-1 border rounded text-xs bg-transparent dark:border-slate-700"
+                                                value={row.correct.toLowerCase()}
+                                                onChange={(e) => updateRow(row.id, "correct", e.target.value)}
+                                            >
+                                                <option value="">Select...</option>
+                                                <option value="true">True</option>
+                                                <option value="false">False</option>
+                                            </select>
+                                        ) : (
+                                            <input
+                                                className="w-full p-1 border rounded text-xs bg-transparent dark:border-slate-700"
+                                                placeholder="Answer Key (e.g. Option 1)"
+                                                value={row.correct}
+                                                onChange={(e) => updateRow(row.id, "correct", e.target.value)}
+                                            />
+                                        )}
+                                    </div>
                                 </td>
 
                                 {/* Validation Status */}
