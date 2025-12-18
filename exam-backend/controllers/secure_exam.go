@@ -147,12 +147,14 @@ func StartAttempt(c *gin.Context) {
 		tx.Commit()
 
 		c.JSON(http.StatusOK, gin.H{
-			"id":         existing.ID,
-			"exam_id":    existing.ExamID,
-			"started_at": existing.StartedAt,
-			"time_left":  computeTimeLeftSeconds(exam, existing),
-			"exam_token": existing.ExamToken,
-			"status":     "resumed",
+			"id":           existing.ID,
+			"exam_id":      existing.ExamID,
+			"started_at":   existing.StartedAt,
+			"time_left":    computeTimeLeftSeconds(exam, existing),
+			"exam_token":   existing.ExamToken,
+			"answers":      existing.Answers,
+			"tab_switches": existing.TabSwitches,
+			"status":       "resumed",
 		})
 		return
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {

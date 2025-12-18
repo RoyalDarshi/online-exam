@@ -126,7 +126,23 @@ export const useExam = (
                 setAttemptId(attempt.id);
                 setExamToken(attempt.exam_token); // Capture Token
 
-                if (attempt.answers) setAnswers(attempt.answers);
+                if (attempt.answers) {
+                    setAnswers(attempt.answers);
+                    // 1. Mark questions with answers as "Visited"
+                    const restoredVisited = new Set<string>();
+                    // Add current question (always visited)
+                    if (qs.length > 0) restoredVisited.add(qs[0].id);
+                    // Add all answered questions
+                    Object.keys(attempt.answers).forEach(qId => restoredVisited.add(qId));
+                    setVisited(restoredVisited);
+
+                    // 2. (Optional) Auto-jump to the first UNANSWERED question
+                    // This improves UX so they don't have to scroll past what they did.
+                    const firstUnansweredIdx = qs.findIndex(q => !attempt.answers[q.id]);
+                    if (firstUnansweredIdx !== -1) {
+                        setCurrentQIndex(firstUnansweredIdx);
+                    }
+                }
                 if (attempt.time_left !== undefined) setTimeLeft(attempt.time_left);
                 if (attempt.tab_switches) setWarnings(attempt.tab_switches);
 

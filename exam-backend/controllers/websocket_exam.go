@@ -198,7 +198,6 @@ func ExamWebSocket(c *gin.Context) {
 }
 
 // terminateAttempt marks the attempt terminated in DB and removes redis keys.
-// terminateAttempt marks the attempt terminated in DB and removes redis keys.
 func terminateAttempt(attemptID string, reason string) {
 	// CRITICAL FIX: Add "AND submitted_at IS NULL"
 	// We only want to terminate if the student hasn't already successfully submitted.
