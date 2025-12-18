@@ -35,6 +35,11 @@ type Exam struct {
 	StartTime time.Time `json:"start_time"`
 	EndTime   time.Time `json:"end_time"`
 
+	// Positive Marks Configuration
+	MarksEasy   int `json:"marks_easy"`
+	MarksMedium int `json:"marks_medium"`
+	MarksHard   int `json:"marks_hard"`
+
 	// Negative marking
 	EnableNegativeMarking bool    `json:"enable_negative_marking"`
 	NegativeMarkEasy      float64 `json:"negative_mark_easy"`

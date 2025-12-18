@@ -106,11 +106,35 @@ type TopicDetail struct {
 	ByType  map[string]*DifficultyStats `json:"by_type"` // Stats broken down by Question Type
 }
 
-// ----------------------
-// HELPER: Generator Logic
-// ----------------------
+// StartExamCleanupTask starts a background goroutine to deactivate exams
+// 5 minutes after their EndTime has passed.
+func StartExamCleanupTask() {
+	// Check every 1 minute
+	ticker := time.NewTicker(1 * time.Minute)
 
-// GET /api/admin/bank/topics/:subject
+	go func() {
+		for range ticker.C {
+			deactivateExpiredExams()
+		}
+	}()
+}
+
+func deactivateExpiredExams() {
+	// ... [Existing cleanup logic remains unchanged] ...
+	threshold := time.Now().In(istLocation).Add(-5 * time.Minute)
+
+	result := database.DB.Model(&models.Exam{}).
+		Where("is_active = ? AND end_time IS NOT NULL AND end_time < ?", true, threshold).
+		Update("is_active", false)
+
+	if result.Error != nil {
+		fmt.Printf("Error running exam cleanup: %v\n", result.Error)
+	} else if result.RowsAffected > 0 {
+		fmt.Printf("Deactivated %d expired exams.\n", result.RowsAffected)
+	}
+}
+
+// ... [Existing AdminGetTopicsForSubject and AdminGetSubjects remain unchanged] ...
 func AdminGetTopicsForSubject(c *gin.Context) {
 	subject := c.Param("subject")
 	var records []models.QuestionBank
@@ -119,7 +143,6 @@ func AdminGetTopicsForSubject(c *gin.Context) {
 		return
 	}
 
-	// Map: TopicName -> TopicDetail
 	topicMap := make(map[string]*TopicDetail)
 
 	for _, q := range records {
@@ -133,7 +156,6 @@ func AdminGetTopicsForSubject(c *gin.Context) {
 			qType = "Standard"
 		}
 
-		// Ensure Topic Entry exists
 		if _, ok := topicMap[tName]; !ok {
 			topicMap[tName] = &TopicDetail{
 				Topic:  tName,
@@ -142,13 +164,11 @@ func AdminGetTopicsForSubject(c *gin.Context) {
 		}
 		tEntry := topicMap[tName]
 
-		// Ensure Type Entry exists for this Topic
 		if _, ok := tEntry.ByType[qType]; !ok {
 			tEntry.ByType[qType] = &DifficultyStats{}
 		}
 		typeStats := tEntry.ByType[qType]
 
-		// Increment Counts (Granular)
 		typeStats.Total++
 		tEntry.Overall.Total++
 
@@ -165,7 +185,6 @@ func AdminGetTopicsForSubject(c *gin.Context) {
 		}
 	}
 
-	// Convert map to slice
 	out := make([]TopicDetail, 0, len(topicMap))
 	for _, v := range topicMap {
 		out = append(out, *v)
@@ -174,7 +193,6 @@ func AdminGetTopicsForSubject(c *gin.Context) {
 	c.JSON(http.StatusOK, out)
 }
 
-// GET /api/admin/bank/subjects
 func AdminGetSubjects(c *gin.Context) {
 	rows := []SubjectSummary{}
 	if err := database.DB.Model(&models.QuestionBank{}).
@@ -192,12 +210,9 @@ func generateQuestionsFromBank(tx *gorm.DB, examID uuid.UUID, req ExamUpsertRequ
 	var bank []models.QuestionBank
 	query := tx.Where("subject = ?", req.Subject)
 
-	// Filter by Topic if provided
 	if len(req.Topics) > 0 {
 		query = query.Where("topic IN ?", req.Topics)
 	}
-
-	// Filter by Type if provided
 	if len(req.QuestionTypes) > 0 {
 		query = query.Where("type IN ?", req.QuestionTypes)
 	}
@@ -219,17 +234,13 @@ func generateQuestionsFromBank(tx *gorm.DB, examID uuid.UUID, req ExamUpsertRequ
 		}
 	}
 
-	// 3. Calculate Counts (Fixed: Use Rounding to match Frontend)
+	// 3. Calculate Counts
 	total := float64(req.TotalQuestions)
-
-	// Math.Round ensures 33% of 3 results in 1, not 0
 	needEasy := int(math.Round(total * float64(req.Difficulty.Easy) / 100.0))
 	needMedium := int(math.Round(total * float64(req.Difficulty.Medium) / 100.0))
-
-	// Assign remainder to Hard to ensure sum equals Total
 	needHard := req.TotalQuestions - needEasy - needMedium
 
-	// 4. Validate Availability (Fixed: Clear Error Message)
+	// 4. Validate Availability
 	if len(easyQs) < needEasy || len(medQs) < needMedium || len(hardQs) < needHard {
 		errMsg := fmt.Sprintf(
 			"Not enough questions in bank. Needed: [E:%d, M:%d, H:%d], Found: [E:%d, M:%d, H:%d]",
@@ -253,7 +264,7 @@ func generateQuestionsFromBank(tx *gorm.DB, examID uuid.UUID, req ExamUpsertRequ
 		for i := 0; i < count; i++ {
 			if i >= len(source) {
 				break
-			} // Safety check
+			}
 			qb := source[i]
 			finalNeg := 0.0
 			if req.EnableNegativeMarking {
@@ -275,6 +286,7 @@ func generateQuestionsFromBank(tx *gorm.DB, examID uuid.UUID, req ExamUpsertRequ
 		}
 	}
 
+	// Use Config from Req for Points
 	addQs(easyQs, needEasy, req.PointsConfig.Easy, req.NegativeConfig.Easy)
 	addQs(medQs, needMedium, req.PointsConfig.Medium, req.NegativeConfig.Medium)
 	addQs(hardQs, needHard, req.PointsConfig.Hard, req.NegativeConfig.Hard)
@@ -295,7 +307,6 @@ func generateQuestionsFromBank(tx *gorm.DB, examID uuid.UUID, req ExamUpsertRequ
 // ----------------------
 
 // POST /api/admin/exams
-// Handles both "Manual Setup" (if TotalQuestions=0) and "From Bank" (if TotalQuestions>0)
 func CreateExam(c *gin.Context) {
 	var req ExamUpsertRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -303,24 +314,30 @@ func CreateExam(c *gin.Context) {
 		return
 	}
 
-	// Get Admin ID
 	uidVal, _ := c.Get("userID")
 	adminIDStr, _ := uidVal.(string)
 	adminID, _ := uuid.Parse(adminIDStr)
 
 	exam := models.Exam{
-		Title:                 req.Title,
-		Description:           req.Description,
-		DurationMinutes:       req.DurationMinutes,
-		PassingScore:          req.PassingScore,
-		Subject:               req.Subject,
-		CreatedByID:           adminID,
-		StartTime:             req.StartTime.In(istLocation), // Ensure you have istLocation defined globally or locally
+		Title:           req.Title,
+		Description:     req.Description,
+		DurationMinutes: req.DurationMinutes,
+		PassingScore:    req.PassingScore,
+		Subject:         req.Subject,
+		CreatedByID:     adminID,
+		StartTime:       req.StartTime.In(istLocation),
+		IsActive:        true,
+
+		// Map Positive Marks
+		MarksEasy:   req.PointsConfig.Easy,
+		MarksMedium: req.PointsConfig.Medium,
+		MarksHard:   req.PointsConfig.Hard,
+
+		// Map Negative Marks
 		EnableNegativeMarking: req.EnableNegativeMarking,
 		NegativeMarkEasy:      req.NegativeConfig.Easy,
 		NegativeMarkMedium:    req.NegativeConfig.Medium,
 		NegativeMarkHard:      req.NegativeConfig.Hard,
-		IsActive:              true, // Default active on create
 	}
 
 	if req.IsActive != nil {
@@ -336,7 +353,6 @@ func CreateExam(c *gin.Context) {
 			return err
 		}
 
-		// Only generate if configuration is present
 		if req.TotalQuestions > 0 {
 			if err := generateQuestionsFromBank(tx, exam.ID, req); err != nil {
 				return err
@@ -354,7 +370,6 @@ func CreateExam(c *gin.Context) {
 }
 
 // PUT /api/admin/exams/:id
-// Updates metadata. If generation config is present, REGENERATES questions.
 func UpdateExam(c *gin.Context) {
 	id := c.Param("id")
 	var req ExamUpsertRequest
@@ -376,6 +391,13 @@ func UpdateExam(c *gin.Context) {
 	exam.DurationMinutes = req.DurationMinutes
 	exam.PassingScore = req.PassingScore
 	exam.StartTime = req.StartTime.In(istLocation)
+
+	// Update Positive Marks
+	exam.MarksEasy = req.PointsConfig.Easy
+	exam.MarksMedium = req.PointsConfig.Medium
+	exam.MarksHard = req.PointsConfig.Hard
+
+	// Update Negative Marks
 	exam.EnableNegativeMarking = req.EnableNegativeMarking
 	exam.NegativeMarkEasy = req.NegativeConfig.Easy
 	exam.NegativeMarkMedium = req.NegativeConfig.Medium
@@ -383,6 +405,8 @@ func UpdateExam(c *gin.Context) {
 
 	if req.IsActive != nil {
 		exam.IsActive = *req.IsActive
+	} else {
+		exam.IsActive = true
 	}
 	if exam.DurationMinutes > 0 {
 		exam.EndTime = exam.StartTime.Add(time.Duration(exam.DurationMinutes) * time.Minute)
@@ -395,11 +419,9 @@ func UpdateExam(c *gin.Context) {
 
 		// If generation config is provided, DELETE OLD and REGENERATE
 		if req.TotalQuestions > 0 {
-			// Wipe old questions
 			if err := tx.Where("exam_id = ?", exam.ID).Delete(&models.Question{}).Error; err != nil {
 				return err
 			}
-			// Generate new ones
 			if err := generateQuestionsFromBank(tx, exam.ID, req); err != nil {
 				return err
 			}
@@ -426,7 +448,6 @@ func ExamBankPreview(c *gin.Context) {
 		return
 	}
 
-	// load questions matching subject + topics
 	var bank []models.QuestionBank
 	query := database.DB.Where("subject = ?", req.Subject)
 	if len(req.Topics) > 0 {
@@ -445,7 +466,6 @@ func ExamBankPreview(c *gin.Context) {
 		return
 	}
 
-	// difficulty buckets
 	easy := 0
 	medium := 0
 	hard := 0
@@ -489,7 +509,6 @@ func ExamBankPreview(c *gin.Context) {
 		return
 	}
 
-	// topic distribution checks (optional)
 	if len(req.TopicDistribution) > 0 {
 		for topic, need := range req.TopicDistribution {
 			avail := byTopic[topic]

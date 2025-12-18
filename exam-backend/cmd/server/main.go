@@ -50,6 +50,9 @@ func main() {
 		// continue in degraded mode (Redis optional)
 	}
 
+	// Start the background worker to clean up old exams
+	controllers.StartExamCleanupTask()
+
 	r := gin.Default()
 
 	config := cors.DefaultConfig()
