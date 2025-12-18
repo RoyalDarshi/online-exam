@@ -22,25 +22,6 @@ func nowIST() time.Time {
 	return time.Now().In(istLocation)
 }
 
-// computeTimeLeft same as earlier
-func computeTimeLeft(exam models.Exam) int {
-	now := nowIST()
-
-	if !exam.EndTime.IsZero() {
-		end := exam.EndTime.In(istLocation)
-		secs := int(end.Sub(now).Seconds())
-		if secs < 0 {
-			return 0
-		}
-		return secs
-	}
-
-	if exam.DurationMinutes <= 0 {
-		return 0
-	}
-	return exam.DurationMinutes * 60
-}
-
 // ------------------------- Sanitizer (student-facing) -------------------------
 func sanitizeQuestions(questions []models.Question) []gin.H {
 	clean := make([]gin.H, 0, len(questions))

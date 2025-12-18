@@ -641,7 +641,7 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
 
                     {currentQ.type === "true-false" &&
                       ["True", "False"].map((txt) => {
-                        const val = txt === "True" ? "A" : "B";
+                        const val = txt;
                         const selected = isSelected(
                           currentQ.id,
                           val,

@@ -177,7 +177,7 @@ func ExamWebSocket(c *gin.Context) {
 				if cmdType, ok := cmd["type"].(string); ok {
 					switch cmdType {
 					case "tab-switch":
-						_ = database.DB.Model(&attempt).Where("id = ?", attempt.ID).UpdateColumn("tab_switches", gorm.Expr("tab_switches + ?", 1)).Error
+						_ = database.DB.Model(&attempt).Where("id = ? AND submitted_at IS NULL", attempt.ID).UpdateColumn("tab_switches", gorm.Expr("tab_switches + ?", 1)).Error
 						_ = database.DB.First(&attempt, "id = ?", attempt.ID).Error
 						if attempt.TabSwitches > 3 {
 							terminateAttempt(aid.String(), "tab_switches_exceeded")

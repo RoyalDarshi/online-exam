@@ -1,8 +1,11 @@
 package controllers
 
 import (
+	"errors"
 	"exam-backend/database"
 	"exam-backend/models"
+	"fmt"
+	"math"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -194,7 +197,7 @@ func generateQuestionsFromBank(tx *gorm.DB, examID uuid.UUID, req ExamUpsertRequ
 		query = query.Where("topic IN ?", req.Topics)
 	}
 
-	// Filter by Type if provided (New Feature)
+	// Filter by Type if provided
 	if len(req.QuestionTypes) > 0 {
 		query = query.Where("type IN ?", req.QuestionTypes)
 	}
@@ -216,16 +219,23 @@ func generateQuestionsFromBank(tx *gorm.DB, examID uuid.UUID, req ExamUpsertRequ
 		}
 	}
 
-	// 3. Calculate Counts based on Percentages
-	total := req.TotalQuestions
-	needEasy := int(float64(total) * float64(req.Difficulty.Easy) / 100.0)
-	needMedium := int(float64(total) * float64(req.Difficulty.Medium) / 100.0)
-	needHard := total - needEasy - needMedium
+	// 3. Calculate Counts (Fixed: Use Rounding to match Frontend)
+	total := float64(req.TotalQuestions)
 
-	// 4. Validate Availability
+	// Math.Round ensures 33% of 3 results in 1, not 0
+	needEasy := int(math.Round(total * float64(req.Difficulty.Easy) / 100.0))
+	needMedium := int(math.Round(total * float64(req.Difficulty.Medium) / 100.0))
+
+	// Assign remainder to Hard to ensure sum equals Total
+	needHard := req.TotalQuestions - needEasy - needMedium
+
+	// 4. Validate Availability (Fixed: Clear Error Message)
 	if len(easyQs) < needEasy || len(medQs) < needMedium || len(hardQs) < needHard {
-		// More descriptive error can be returned here if needed
-		return gorm.ErrInvalidData
+		errMsg := fmt.Sprintf(
+			"Not enough questions in bank. Needed: [E:%d, M:%d, H:%d], Found: [E:%d, M:%d, H:%d]",
+			needEasy, needMedium, needHard, len(easyQs), len(medQs), len(hardQs),
+		)
+		return errors.New(errMsg)
 	}
 
 	// 5. Shuffle & Pick
@@ -241,6 +251,9 @@ func generateQuestionsFromBank(tx *gorm.DB, examID uuid.UUID, req ExamUpsertRequ
 	questionsToInsert := []models.Question{}
 	addQs := func(source []models.QuestionBank, count int, points int, negPoints float64) {
 		for i := 0; i < count; i++ {
+			if i >= len(source) {
+				break
+			} // Safety check
 			qb := source[i]
 			finalNeg := 0.0
 			if req.EnableNegativeMarking {

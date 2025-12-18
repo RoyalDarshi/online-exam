@@ -459,12 +459,12 @@ const ExamReview: React.FC<Props> = ({ attempt, onBack, mode = "student" }) => {
                                                 {/* TRUE / FALSE */}
                                                 {currentQ.type === "true-false"
                                                     ? ["True", "False"].map((label) => {
-                                                        const val = label === "True" ? "A" : "B";
-                                                        const isUserSelected = currentUserNorm
+                                                        const val = label.toLowerCase();
+                                                        const isUserSelected = currentUserNorm.toLowerCase()
                                                             .split(",")
                                                             .includes(val);
                                                         const isCorrect =
-                                                            currentCorrectNorm
+                                                            currentCorrectNorm.toLowerCase()
                                                                 .split(",")
                                                                 .includes(val) && mode === "admin";
 
