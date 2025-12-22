@@ -30,6 +30,9 @@ export function ExamPreview({ exam, onBack, onStart }: Props) {
     const [timeLeft, setTimeLeft] = React.useState<string>("");
     const [hasAcknowledged, setHasAcknowledged] = React.useState(false);
 
+    const EXAMGUARD_DOWNLOAD_URL = "/ExamGuard.exe";
+
+
     // ExamGuard status (polling true)
     const examGuardActive = useExamGuard(true);
     useExamGuardLockdown();
@@ -241,11 +244,32 @@ export function ExamPreview({ exam, onBack, onStart }: Props) {
                                             : "ExamGuard is not running. Please launch the application to proceed."}
                                     </p>
                                 </div>
-                                {!examGuardActive && (
-                                    <div className="text-xs font-semibold px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-slate-600 dark:text-slate-300 shadow-sm">
-                                        Waiting for connection...
-                                    </div>
-                                )}
+                               {!examGuardActive && (
+    <div className="flex flex-col sm:items-end gap-2">
+        <span className="text-xs font-semibold px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-slate-600 dark:text-slate-300 shadow-sm">
+            ExamGuard not detected
+        </span>
+
+        <a
+            href={EXAMGUARD_DOWNLOAD_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="
+              inline-flex items-center gap-2 px-4 py-2 rounded-lg
+              bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold
+              shadow transition
+            "
+        >
+            ⬇ Download ExamGuard
+        </a>
+
+        <span className="text-[11px] text-slate-500 dark:text-slate-400 text-right max-w-[220px]">
+            Download, install, and run ExamGuard.  
+            This page will auto-detect once it is active.
+        </span>
+    </div>
+)}
+
                             </div>
 
                             <div className="grid md:grid-cols-2 gap-8">

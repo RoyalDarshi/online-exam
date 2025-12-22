@@ -56,8 +56,8 @@ func main() {
 	r := gin.Default()
 
 	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"http://192.168.1.13:5173", "http://localhost:5173", "http://192.168.1.8:5173"}
-	config.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type", "Authorization"}
+	config.AllowAllOrigins = true
+	config.AllowHeaders = []string{"*"}
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
 	r.Use(cors.New(config))
 

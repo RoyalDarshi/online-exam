@@ -24,6 +24,7 @@ export function Auth() {
     try {
       if (isSignUp) {
         await signUp(email, password, fullName, role);
+        await signIn(email, password);
       } else {
         await signIn(email, password);
       }
