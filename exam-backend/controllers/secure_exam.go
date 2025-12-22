@@ -106,11 +106,11 @@ func StartAttempt(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "exam_closed"})
 		return
 	}
-	// user can not start exam after 5 min of delay
-	if !exam.StartTime.IsZero() && now.After(exam.StartTime.Add(5*time.Minute)) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "exam_delayed"})
-		return
-	}
+	// user can not start exam after 5 min of delay and no attempt active
+	// if !exam.StartTime.IsZero() && now.After(exam.StartTime.Add(5*time.Minute)) {
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "exam_delayed"})
+	// 	return
+	// }
 	uidVal, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not in context"})
@@ -233,6 +233,8 @@ func computeTimeLeftSeconds(exam models.Exam, attempt models.ExamAttempt) int64 
 }
 
 // ------------------------- AUTOSAVE / PROGRESS -------------------------
+// controllers/secure_exam.go
+
 func UpdateProgress(c *gin.Context) {
 	var input struct {
 		AttemptID   string            `json:"attempt_id"`
@@ -263,14 +265,14 @@ func UpdateProgress(c *gin.Context) {
 		return
 	}
 
-	// Merge answers (server-side truth)
+	// ---------------------------------------------------------
+	// FIX: Replace answers instead of merging
+	// Since frontend sends the full state, we overwrite the DB state.
+	// If a key is missing in input.Answers (because it was cleared),
+	// it will effectively be removed from attempt.Answers.
+	// ---------------------------------------------------------
 	if input.Answers != nil {
-		if attempt.Answers == nil {
-			attempt.Answers = make(map[string]string)
-		}
-		for k, v := range input.Answers {
-			attempt.Answers[k] = v
-		}
+		attempt.Answers = input.Answers
 	}
 
 	// Append snapshot if provided

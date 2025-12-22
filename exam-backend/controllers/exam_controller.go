@@ -121,7 +121,7 @@ func StartExamCleanupTask() {
 
 func deactivateExpiredExams() {
 	// ... [Existing cleanup logic remains unchanged] ...
-	threshold := time.Now().In(istLocation).Add(-5 * time.Minute)
+	threshold := time.Now().In(istLocation).Add(-5 * time.Second)
 
 	result := database.DB.Model(&models.Exam{}).
 		Where("is_active = ? AND end_time IS NOT NULL AND end_time < ?", true, threshold).
