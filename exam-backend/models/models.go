@@ -8,7 +8,7 @@ import (
 )
 
 type User struct {
-	ID        uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	ID        uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
 	Email     string    `gorm:"uniqueIndex;not null" json:"email"`
 	Password  string    `json:"-"`
 	FullName  string    `json:"full_name"`
@@ -24,7 +24,7 @@ func (u *User) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 type Exam struct {
-	ID              uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	ID              uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
 	Title           string    `json:"title"`
 	Description     string    `json:"description"`
 	DurationMinutes int       `json:"duration_minutes"`
@@ -62,7 +62,7 @@ func (e *Exam) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 type Question struct {
-	ID            uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	ID            uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
 	ExamID        uuid.UUID `json:"exam_id"`
 	Type          string    `json:"type"` // "single-choice" or "multi-select"
 	Subject       string    `json:"subject"`
@@ -88,7 +88,7 @@ func (q *Question) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 type ExamAttempt struct {
-	ID uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	ID uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
 
 	ExamID            uuid.UUID `json:"exam_id"`
 	Exam              Exam      `gorm:"foreignKey:ExamID" json:"exam"`
@@ -129,7 +129,7 @@ type QuestionInput struct {
 }
 
 type UserSession struct {
-	ID                uuid.UUID  `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	ID                uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
 	UserID            uuid.UUID  `gorm:"index" json:"user_id"`
 	Jti               string     `gorm:"index" json:"jti"`
 	DeviceFingerprint string     `json:"device_fingerprint"`

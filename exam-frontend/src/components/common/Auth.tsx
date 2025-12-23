@@ -29,7 +29,8 @@ export function Auth() {
         await signIn(email, password);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      console.log(err)
+      setError(err instanceof Error ? err?.response?.data?.error : 'An error occurred');
     } finally {
       setLoading(false);
     }

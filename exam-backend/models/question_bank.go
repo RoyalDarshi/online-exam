@@ -8,7 +8,7 @@ import (
 )
 
 type QuestionBank struct {
-	ID           uuid.UUID      `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	ID           uuid.UUID      `gorm:"type:uuid;primaryKey" json:"id"`
 	TeacherID    uuid.UUID      `gorm:"type:uuid;index" json:"teacher_id"`
 	Subject      string         `gorm:"size:100;index" json:"subject"`
 	Topic        string         `gorm:"size:100;index" json:"topic"`
