@@ -178,7 +178,14 @@ func StartAttempt(c *gin.Context) {
 	}
 
 	// 3) Create new attempt (Only if user has NEVER touched this exam before)
+	
+	// Generate ID and Token BEFORE creating
+	newID := uuid.New()
+	examToken := uuid.New().String()
+
 	attempt := models.ExamAttempt{
+		ID:          newID,        // Explicitly set ID
+		ExamToken:   examToken,    // Explicitly set Token
 		ExamID:      examUUID,
 		StudentID:   userID,
 		StartedAt:   time.Now(),
@@ -187,6 +194,7 @@ func StartAttempt(c *gin.Context) {
 		Snapshots:   []string{},
 	}
 
+	// Single DB call (Create) containing the token and ID
 	if err := tx.Create(&attempt).Error; err != nil {
 		tx.Rollback()
 		if strings.Contains(err.Error(), "unique") {
@@ -194,14 +202,6 @@ func StartAttempt(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start exam"})
-		return
-	}
-
-	// generate exam_token and persist
-	examToken := uuid.New().String()
-	if err := tx.Model(&attempt).Update("exam_token", examToken).Error; err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create exam token"})
 		return
 	}
 
@@ -221,11 +221,25 @@ func StartAttempt(c *gin.Context) {
 }
 
 // computeTimeLeftSeconds: helper calculates remaining seconds
+// computeTimeLeftSeconds: helper calculates remaining seconds
 func computeTimeLeftSeconds(exam models.Exam, attempt models.ExamAttempt) int64 {
 	if exam.DurationMinutes <= 0 {
 		return 0
 	}
-	left := int64(exam.EndTime.Sub(attempt.StartedAt).Seconds())
+
+	// 1. Calculate when the attempt MUST end based on duration
+	attemptExpiry := attempt.StartedAt.Add(time.Duration(exam.DurationMinutes) * time.Minute)
+
+	// 2. If the Exam has a hard global deadline (e.g. closes at 5:00 PM), respect it
+	// (Only if EndTime is set and is earlier than the attempt expiry)
+	if !exam.EndTime.IsZero() && attemptExpiry.After(exam.EndTime) {
+		attemptExpiry = exam.EndTime
+	}
+
+	// 3. Calculate remaining seconds from NOW
+	// We use time.Until(attemptExpiry) which is equivalent to attemptExpiry.Sub(time.Now())
+	left := int64(time.Until(attemptExpiry).Seconds())
+
 	if left < 0 {
 		return 0
 	}
