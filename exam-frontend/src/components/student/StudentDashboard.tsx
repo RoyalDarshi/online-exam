@@ -3,18 +3,14 @@ import React from "react";
 import api from "../../lib/api";
 import { useAuth } from "../../contexts/AuthContext";
 
-import {
-  Clock,
-  PlayCircle,
-  List,
-} from "lucide-react";
+import { Clock, PlayCircle, List } from "lucide-react";
 
-import { Exam, ExamAttempt } from "../../types/models";
+import { Exam } from "../../types/models";
 import { ExamTaking } from "./exam/ExamTaking";
 import { ExamPreview } from "./exam/ExamPreview";
-import ExamReview from "../common/ExamReview";
+// import ExamReview from "../common/ExamReview";
 import StudentNavbar from "./StudentNavbar";
-import { StudentAttemptHistory } from "./StudentAttemptHistory";
+// import { StudentAttemptHistory } from "./StudentAttemptHistory";
 
 type View = "list" | "preview" | "taking" | "review" | "history";
 
@@ -26,7 +22,9 @@ export function StudentDashboard() {
 
   const [view, setView] = React.useState<View>("list");
   const [selectedExam, setSelectedExam] = React.useState<Exam | null>(null);
-  const [reviewAttempt, setReviewAttempt] = React.useState<ExamAttempt | null>(null);
+  // const [reviewAttempt, setReviewAttempt] = React.useState<ExamAttempt | null>(
+  //   null
+  // );
 
   React.useEffect(() => {
     loadExams();
@@ -43,23 +41,24 @@ export function StudentDashboard() {
     }
   }
 
-  const openReviewFromHistory = (attempt: ExamAttempt) => {
-    setReviewAttempt(attempt);
-    setView("review");
-  };
+  // const openReviewFromHistory = (attempt: ExamAttempt) => {
+  //   setReviewAttempt(attempt);
+  //   setView("review");
+  // };
 
   const handleComplete = async () => {
     try {
-      const myAttempts = await api.get("/student/attempts");
-      const latest = myAttempts.data[0];
-      if (!latest) {
-        alert("Unable to load attempt for review.");
-        setView("list");
-        return;
-      }
-      const attemptDetails = await api.get(`/attempts/${latest.id}`);
-      setReviewAttempt(attemptDetails.data);
-      setView("review");
+      // const myAttempts = await api.get("/student/attempts");
+      // const latest = myAttempts.data[0];
+      // if (!latest) {
+      //   alert("Unable to load attempt for review.");
+      //   setView("list");
+      //   return;
+      // }
+      // const attemptDetails = await api.get(`/attempts/${latest.id}`);
+      // setReviewAttempt(attemptDetails.data);
+      // setView("review");
+      setView("list");
     } catch (err) {
       console.error(err);
       alert("Error loading review page");
@@ -95,28 +94,28 @@ export function StudentDashboard() {
   }
 
   // VIEW: Review
-  if (view === "review" && reviewAttempt) {
-    return (
-      <ExamReview
-        attempt={reviewAttempt}
-        onBack={() => {
-          setReviewAttempt(null);
-          setView("list");
-        }}
-        mode="admin"
-      />
-    );
-  }
+  // if (view === "review" && reviewAttempt) {
+  //   return (
+  //     <ExamReview
+  //       attempt={reviewAttempt}
+  //       onBack={() => {
+  //         setReviewAttempt(null);
+  //         setView("list");
+  //       }}
+  //       mode="admin"
+  //     />
+  //   );
+  // }
 
   // VIEW: History
-  if (view === "history") {
-    return (
-      <StudentAttemptHistory
-        onBack={() => setView("list")}
-        onOpenReview={openReviewFromHistory}
-      />
-    );
-  }
+  // if (view === "history") {
+  //   return (
+  //     <StudentAttemptHistory
+  //       onBack={() => setView("list")}
+  //       onOpenReview={openReviewFromHistory}
+  //     />
+  //   );
+  // }
 
   // VIEW: MAIN DASHBOARD (LIST)
   return (
@@ -149,9 +148,7 @@ export function StudentDashboard() {
 
         {/* LOADING */}
         {loading && (
-          <p className="text-slate-500 dark:text-slate-400">
-            Loading exams...
-          </p>
+          <p className="text-slate-500 dark:text-slate-400">Loading exams...</p>
         )}
 
         {/* EMPTY */}

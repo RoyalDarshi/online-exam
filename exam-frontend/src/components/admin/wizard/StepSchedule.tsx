@@ -18,6 +18,8 @@ type Props = {
     enableNeg: boolean;
 };
 
+// admin should not able to create exams for past dates and times
+
 export const StepSchedule: React.FC<Props> = ({
     meta,
     setMeta,

@@ -33,6 +33,8 @@ import ReviewAndSubmitModal from "./ReviewAndSubmitModal";
 import { requestFullScreen } from "../../../hooks/useProctoring";
 import { ThemeContext } from "../../../contexts/ThemeContext";
 import { useExamGuard } from "../../../hooks/useExamGuard";
+import { useMicMonitor } from "../../../hooks/useMicMonitor";
+import { useFacePresence } from "../../../hooks/useFacePresence";
 
 type CandidateInfo = {
   name: string;
@@ -45,6 +47,14 @@ type Props = {
   onComplete: () => void;
   onCancel: () => void;
   candidate?: CandidateInfo;
+};
+
+type UIWarningLevel = "low" | "medium" | "high";
+
+type UIWarning = {
+  id: string;
+  message: string;
+  level: UIWarningLevel;
 };
 
 const getSectionName = (q: Question): string => {
@@ -99,10 +109,51 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
   } = useExam(exam, onComplete);
 
   const [showSidebar, setShowSidebar] = React.useState(true);
+  const [uiWarnings, setUiWarnings] = React.useState<UIWarning[]>([]);
+
   const { theme, toggleTheme } = useContext(ThemeContext);
 
   // ExamGuard status during exam (polling every 5s)
   const guardActive = useExamGuard(true);
+
+  const addUIWarning = (
+    message: string,
+    level: UIWarningLevel = "low",
+    autoHideMs = 6000 // ⏱ default 6 seconds
+  ) => {
+    const id = crypto.randomUUID();
+
+    setUiWarnings((prev) => [...prev, { id, message, level }]);
+
+    // ⏱ Auto-hide
+    setTimeout(() => {
+      setUiWarnings((prev) => prev.filter((w) => w.id !== id));
+    }, autoHideMs);
+  };
+
+  // Monitor mic and face
+  // useMicMonitor({
+  //   onSilence: () => {
+  //     addUIWarning(
+  //       "Microphone is silent for an extended period",
+  //       "medium",
+  //       8000
+  //     );
+  //   },
+  //   onNoise: () => {
+  //     addUIWarning("Excessive background noise detected", "low", 5000);
+  //   },
+  // });
+
+  // useFacePresence({
+  //   onFaceMissing: () => {
+  //     addUIWarning(
+  //       "Face not detected in camera. Please stay visible.",
+  //       "high",
+  //       10000
+  //     );
+  //   },
+  // });
 
   React.useEffect(() => {
     if (window.innerWidth < 1024) setShowSidebar(false);
@@ -165,7 +216,6 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
 
   // ERROR
   if (status === "error") {
-
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950">
         <AlertOctagon className="w-12 h-12 text-rose-500 mb-4" />
@@ -218,12 +268,13 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
         <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-3">
           <div
             className={`flex items-center gap-2 px-4 py-1.5 rounded-full font-mono text-sm font-semibold border shadow-inner transition-colors
-            ${timeLeft < 300
+            ${
+              timeLeft < 300
                 ? "bg-rose-100 border-rose-500 text-rose-800 dark:bg-rose-900/40 dark:border-rose-700 dark:text-rose-100"
                 : timeLeft < 900
-                  ? "bg-amber-100 border-amber-500 text-amber-800 dark:bg-amber-900/40 dark:border-amber-700 dark:text-amber-100"
-                  : "bg-slate-100 border-slate-300 text-slate-900 dark:bg-slate-900/70 dark:border-slate-700 dark:text-slate-100"
-              }`}
+                ? "bg-amber-100 border-amber-500 text-amber-800 dark:bg-amber-900/40 dark:border-amber-700 dark:text-amber-100"
+                : "bg-slate-100 border-slate-300 text-slate-900 dark:bg-slate-900/70 dark:border-slate-700 dark:text-slate-100"
+            }`}
           >
             <Clock className="w-4 h-4" /> {formatTime(timeLeft)}
           </div>
@@ -263,11 +314,7 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
             <button
               onClick={() =>
                 setTextSize(
-                  textSize === "xl"
-                    ? "lg"
-                    : textSize === "lg"
-                      ? "base"
-                      : "sm"
+                  textSize === "xl" ? "lg" : textSize === "lg" ? "base" : "sm"
                 )
               }
               className="px-2 py-1 hover:bg-slate-200 rounded-l-md transition disabled:opacity-30 dark:hover:bg-slate-800"
@@ -280,11 +327,7 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
             <button
               onClick={() =>
                 setTextSize(
-                  textSize === "sm"
-                    ? "base"
-                    : textSize === "base"
-                      ? "lg"
-                      : "xl"
+                  textSize === "sm" ? "base" : textSize === "base" ? "lg" : "xl"
                 )
               }
               className="px-2 py-1 hover:bg-slate-200 rounded-r-md transition disabled:opacity-30 dark:hover:bg-slate-800"
@@ -374,9 +417,10 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
                 if (idx !== -1) setCurrentQIndex(idx);
               }}
               className={`px-3 py-1.5 whitespace-nowrap rounded-md border text-[11px] font-semibold transition
-                ${activeSection === sec
-                  ? "bg-sky-600 border-sky-500 text-white"
-                  : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100 dark:bg-slate-950 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-900"
+                ${
+                  activeSection === sec
+                    ? "bg-sky-600 border-sky-500 text-white"
+                    : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100 dark:bg-slate-950 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-900"
                 }`}
             >
               {sec}
@@ -391,8 +435,8 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
           <div className="flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-amber-500 dark:text-amber-400" />
             <span>
-              Warnings:{" "}
-              <span className="font-semibold">{warnings}</span> / {MAX_WARNINGS}
+              Warnings: <span className="font-semibold">{warnings}</span> /{" "}
+              {MAX_WARNINGS}
             </span>
             {!guardActive && (
               <span className="hidden sm:inline text-rose-700 font-semibold ml-2 dark:text-rose-200">
@@ -414,6 +458,28 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
               <Maximize2 className="w-3 h-3" /> Re-enter Fullscreen
             </button>
           )}
+        </div>
+      )}
+
+      {uiWarnings.length > 0 && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-3xl space-y-2">
+          {uiWarnings.map((w) => {
+            const styles =
+              w.level === "high"
+                ? "bg-red-100 border-red-500 text-red-900 dark:bg-red-950 dark:border-red-700 dark:text-red-100"
+                : w.level === "medium"
+                ? "bg-orange-100 border-orange-500 text-orange-900 dark:bg-orange-950 dark:border-orange-700 dark:text-orange-100"
+                : "bg-yellow-100 border-yellow-400 text-yellow-900 dark:bg-yellow-950 dark:border-yellow-600 dark:text-yellow-100";
+
+            return (
+              <div
+                key={w.id}
+                className={`border-l-4 px-4 py-3 rounded-md shadow-md text-sm font-medium animate-slide-down ${styles}`}
+              >
+                ⚠️ {w.message}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -467,7 +533,6 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
         )}
         {/* MAIN AREA */}
         <main className="flex-1 flex flex-col h-full overflow-hidden relative">
-
           {/* Question + options */}
           <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 bg-slate-50 dark:bg-slate-950">
             <div className="max-w-4xl mx-auto space-y-5">
@@ -479,10 +544,11 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
                 className={`rounded-xl border bg-white border-slate-200 shadow-sm overflow-hidden dark:bg-slate-900/70 dark:border-slate-800`}
               >
                 {/* Question header */}
-                <div className="px-4 md:px-6 py-4 border-b border-slate-200 bg-slate-50 
+                <div
+                  className="px-4 md:px-6 py-4 border-b border-slate-200 bg-slate-50 
                   flex flex-col sm:flex-row sm:items-center justify-between gap-4
-                  dark:border-slate-800 dark:bg-slate-900/60">
-
+                  dark:border-slate-800 dark:bg-slate-900/60"
+                >
                   {/* Left Section */}
                   <div className="space-y-1.5">
                     {/* Question Heading */}
@@ -497,16 +563,16 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
 
                     {/* Metadata Badges */}
                     <div className="flex flex-wrap items-center gap-2 text-[11px]">
-
                       {/* Complexity */}
                       <span
                         className={`px-2 py-0.5 rounded-full font-medium border shadow-sm capitalize
-                      ${currentQ.complexity === "hard"
-                            ? "bg-rose-100 text-rose-700 border-rose-300 dark:bg-rose-950/50 dark:text-rose-200 dark:border-rose-700"
-                            : currentQ.complexity === "medium"
-                              ? "bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-700"
-                              : "bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-700"
-                          }`}
+                      ${
+                        currentQ.complexity === "hard"
+                          ? "bg-rose-100 text-rose-700 border-rose-300 dark:bg-rose-950/50 dark:text-rose-200 dark:border-rose-700"
+                          : currentQ.complexity === "medium"
+                          ? "bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-700"
+                          : "bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-700"
+                      }`}
                       >
                         {currentQ.complexity || "easy"}
                       </span>
@@ -514,10 +580,11 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
                       {/* Type */}
                       <span
                         className={`px-2 py-0.5 rounded-full font-medium border shadow-sm flex items-center gap-1 capitalize
-                      ${currentQ.type === "multi-select"
-                            ? "bg-violet-100 text-violet-700 border-violet-300 dark:bg-violet-950/40 dark:text-violet-200 dark:border-violet-700"
-                            : "bg-sky-100 text-sky-700 border-sky-300 dark:bg-sky-950/40 dark:text-sky-200 dark:border-sky-700"
-                          }`}
+                      ${
+                        currentQ.type === "multi-select"
+                          ? "bg-violet-100 text-violet-700 border-violet-300 dark:bg-violet-950/40 dark:text-violet-200 dark:border-violet-700"
+                          : "bg-sky-100 text-sky-700 border-sky-300 dark:bg-sky-950/40 dark:text-sky-200 dark:border-sky-700"
+                      }`}
                       >
                         {currentQ.type === "multi-select" ? (
                           <ListFilter className="w-3 h-3" />
@@ -528,20 +595,26 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
                       </span>
 
                       {/* Marks */}
-                      <span className="px-2 py-0.5 rounded-full font-medium border border-green-300 shadow-sm
-                      text-green-700 dark:border-green-700 dark:text-green-200">
+                      <span
+                        className="px-2 py-0.5 rounded-full font-medium border border-green-300 shadow-sm
+                      text-green-700 dark:border-green-700 dark:text-green-200"
+                      >
                         Marks: +{currentQ.marks}
                       </span>
 
                       {/* Negative Marks */}
-                      <span className="px-2 py-0.5 rounded-full font-medium border border-red-300 shadow-sm
-                      text-red-700 dark:border-red-700 dark:text-red-200">
+                      <span
+                        className="px-2 py-0.5 rounded-full font-medium border border-red-300 shadow-sm
+                      text-red-700 dark:border-red-700 dark:text-red-200"
+                      >
                         Negative: -{currentQ.negative_marks}
                       </span>
 
                       {/* Section */}
-                      <span className="px-2 py-0.5 rounded-full font-medium border border-sky-300 shadow-sm
-                      text-sky-700 dark:border-sky-700 dark:text-sky-300">
+                      <span
+                        className="px-2 py-0.5 rounded-full font-medium border border-sky-300 shadow-sm
+                      text-sky-700 dark:border-sky-700 dark:text-sky-300"
+                      >
                         Section: {getSectionName(currentQ)}
                       </span>
                     </div>
@@ -552,21 +625,24 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
                     onClick={toggleMarkCurrent}
                     className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs md:text-sm 
                     font-semibold border shadow-sm transition-all duration-200
-                    ${markedForReview.has(currentQ.id)
+                    ${
+                      markedForReview.has(currentQ.id)
                         ? "bg-violet-600 border-violet-500 text-white dark:bg-violet-900/70 dark:border-violet-600 dark:text-violet-50"
                         : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700"
-                      }`}
+                    }`}
                   >
                     <Flag
-                      className={`w-4 h-4 ${markedForReview.has(currentQ.id) ? "fill-violet-200" : ""}`}
+                      className={`w-4 h-4 ${
+                        markedForReview.has(currentQ.id)
+                          ? "fill-violet-200"
+                          : ""
+                      }`}
                     />
                     {markedForReview.has(currentQ.id)
                       ? "Marked for Review"
                       : "Mark for Review"}
                   </button>
                 </div>
-
-
 
                 {/* Question body */}
                 <div className="px-4 md:px-6 lg:px-8 py-6 md:py-7 bg-white dark:bg-slate-900/80">
@@ -603,9 +679,7 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
                         return (
                           <div
                             key={opt}
-                            onClick={() =>
-                              handleOptionClick(currentQ.id, opt)
-                            }
+                            onClick={() => handleOptionClick(currentQ.id, opt)}
                             className={`group relative flex items-center p-3.5 md:p-4 rounded-lg border cursor-pointer transition ${cardStyle}`}
                           >
                             <div
@@ -624,14 +698,15 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
                               )}
                             </div>
                             <span
-                              className={`font-medium ${getTextClass()} ${selected
-                                ? "text-slate-900 dark:text-slate-50"
-                                : "text-slate-800 dark:text-slate-200"
-                                }`}
+                              className={`font-medium ${getTextClass()} ${
+                                selected
+                                  ? "text-slate-900 dark:text-slate-50"
+                                  : "text-slate-800 dark:text-slate-200"
+                              }`}
                             >
                               {
                                 currentQ[
-                                `option_${opt.toLowerCase()}` as keyof Question
+                                  `option_${opt.toLowerCase()}` as keyof Question
                                 ]
                               }
                             </span>
@@ -650,22 +725,22 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
                         return (
                           <button
                             key={txt}
-                            onClick={() =>
-                              handleOptionClick(currentQ.id, val)
-                            }
+                            onClick={() => handleOptionClick(currentQ.id, val)}
                             className={`w-full py-4 px-6 rounded-lg text-left flex items-center gap-4 border-2 transition text-base font-semibold
-                              ${selected
-                                ? txt === "True"
-                                  ? "bg-emerald-100 border-emerald-500 text-emerald-800 dark:bg-emerald-900/40 dark:border-emerald-500 dark:text-emerald-100"
-                                  : "bg-rose-100 border-rose-500 text-rose-800 dark:bg-rose-900/40 dark:border-rose-500 dark:text-rose-100"
-                                : "bg-slate-50 border-slate-200 text-slate-800 hover:border-slate-300 dark:bg-slate-900/80 dark:border-slate-800 dark:text-slate-200 dark:hover:border-slate-600"
+                              ${
+                                selected
+                                  ? txt === "True"
+                                    ? "bg-emerald-100 border-emerald-500 text-emerald-800 dark:bg-emerald-900/40 dark:border-emerald-500 dark:text-emerald-100"
+                                    : "bg-rose-100 border-rose-500 text-rose-800 dark:bg-rose-900/40 dark:border-rose-500 dark:text-rose-100"
+                                  : "bg-slate-50 border-slate-200 text-slate-800 hover:border-slate-300 dark:bg-slate-900/80 dark:border-slate-800 dark:text-slate-200 dark:hover:border-slate-600"
                               }`}
                           >
                             <div
-                              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selected
-                                ? "border-current"
-                                : "border-slate-400 dark:border-slate-500"
-                                }`}
+                              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                                selected
+                                  ? "border-current"
+                                  : "border-slate-400 dark:border-slate-500"
+                              }`}
                             >
                               {selected && (
                                 <div className="w-2.5 h-2.5 bg-current rounded-full" />
@@ -759,28 +834,31 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
           <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex gap-1 text-[11px] font-semibold dark:border-slate-800 dark:bg-slate-950/90">
             <button
               onClick={() => setPaletteFilter("all")}
-              className={`flex-1 py-1.5 rounded-md ${paletteFilter === "all"
-                ? "bg-slate-800 text-slate-50 dark:bg-slate-800"
-                : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-900"
-                }`}
+              className={`flex-1 py-1.5 rounded-md ${
+                paletteFilter === "all"
+                  ? "bg-slate-800 text-slate-50 dark:bg-slate-800"
+                  : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-900"
+              }`}
             >
               All
             </button>
             <button
               onClick={() => setPaletteFilter("unanswered")}
-              className={`flex-1 py-1.5 rounded-md ${paletteFilter === "unanswered"
-                ? "bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-100"
-                : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-900"
-                }`}
+              className={`flex-1 py-1.5 rounded-md ${
+                paletteFilter === "unanswered"
+                  ? "bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-100"
+                  : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-900"
+              }`}
             >
               Unanswered
             </button>
             <button
               onClick={() => setPaletteFilter("marked")}
-              className={`flex-1 py-1.5 rounded-md ${paletteFilter === "marked"
-                ? "bg-violet-100 text-violet-700 dark:bg-violet-900/60 dark:text-violet-100"
-                : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-900"
-                }`}
+              className={`flex-1 py-1.5 rounded-md ${
+                paletteFilter === "marked"
+                  ? "bg-violet-100 text-violet-700 dark:bg-violet-900/60 dark:text-violet-100"
+                  : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-900"
+              }`}
             >
               Marked
             </button>
@@ -847,17 +925,14 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
             )}
           </div>
 
-          <div className="px-4 py-4 border-t border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/95">
+          <div className="h-16 flex items-center justify-between text-sm px-4 py-2 border-t border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/95">
             <button
               onClick={openSubmitModal}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 rounded-md font-semibold text-sm flex items-center justify-center gap-2 shadow-sm"
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 rounded-md font-semibold text-md flex items-center justify-center shadow-sm gap-2"
             >
               <CheckCircle2 className="w-4 h-4 text-emerald-100" />
               Review & Submit
             </button>
-            <p className="text-center text-[11px] text-slate-500 mt-2 dark:text-slate-400">
-              {Object.keys(answers).length} of {questions.length} answered
-            </p>
           </div>
         </aside>
 
@@ -927,10 +1002,11 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
                                 setCurrentQIndex(globalIdx);
                                 setShowQuestionPaper(false);
                               }}
-                              className={`w-full text-left rounded-md px-3 py-2 border transition ${globalIdx === currentQIndex
-                                ? "bg-sky-100 border-sky-500 text-sky-900 dark:bg-sky-900/60 dark:border-sky-500 dark:text-sky-50"
-                                : "bg-slate-50 border-slate-200 text-slate-800 hover:bg-slate-100 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-900"
-                                }`}
+                              className={`w-full text-left rounded-md px-3 py-2 border transition ${
+                                globalIdx === currentQIndex
+                                  ? "bg-sky-100 border-sky-500 text-sky-900 dark:bg-sky-900/60 dark:border-sky-500 dark:text-sky-50"
+                                  : "bg-slate-50 border-slate-200 text-slate-800 hover:bg-slate-100 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-900"
+                              }`}
                             >
                               <div className="flex items-center justify-between gap-3 mb-1">
                                 <div className="flex items-center gap-2">
@@ -938,8 +1014,7 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
                                     Q{globalIdx + 1}
                                   </span>
                                   <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                                    {q.type.replace("-", " ")} • {q.marks}{" "}
-                                    Marks
+                                    {q.type.replace("-", " ")} • {q.marks} Marks
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-1 text-[10px]">

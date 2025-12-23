@@ -1,15 +1,21 @@
 import React from "react";
 import {
-    ArrowLeft,
-    BookOpen,
-    PlayCircle,
-    Info,
-    AlertTriangle,
-    ShieldAlert,
-    Clock,
-    CheckCircle2,
-    HelpCircle,
-    Trophy,
+  ArrowLeft,
+  BookOpen,
+  Play,
+  ShieldAlert,
+  Clock,
+  CheckCircle2,
+  HelpCircle,
+  Trophy,
+  Wifi,
+  AlertOctagon,
+  Download,
+  ShieldCheck,
+  AlertCircle,
+  Hash,
+  Camera, // Imported
+  Mic, // Imported
 } from "lucide-react";
 
 import StudentNavbar from "../StudentNavbar";
@@ -17,394 +23,547 @@ import { useAuth } from "../../../contexts/AuthContext";
 import { Exam } from "../../../types/models";
 import { useExamGuard } from "../../../hooks/useExamGuard";
 import { useExamGuardLockdown } from "../../../hooks/useExamGuardLockdown";
+import { isScreenCaptureActive } from "../../../utils/screenCaptureState";
 
 interface Props {
-    exam: Exam;
-    onBack: () => void;
-    onStart: () => void;
+  exam: Exam;
+  onBack: () => void;
+  onStart: () => void;
 }
 
 export function ExamPreview({ exam, onBack, onStart }: Props) {
-    const { user, signOut } = useAuth();
+  const { user, signOut } = useAuth();
+  const [timeLeft, setTimeLeft] = React.useState<string>("--:--:--");
+  const [hasAcknowledged, setHasAcknowledged] = React.useState(false);
 
-    const [timeLeft, setTimeLeft] = React.useState<string>("");
-    const [hasAcknowledged, setHasAcknowledged] = React.useState(false);
+  // New state for media permissions
+  const [mediaPermitted, setMediaPermitted] = React.useState(true);
+  const [mediaError, setMediaError] = React.useState<string | null>(null);
+  const [now, setNow] = React.useState(Date.now());
 
-    const EXAMGUARD_DOWNLOAD_URL = "/ExamGuard.exe";
+  React.useEffect(() => {
+    const t = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
 
+    return () => clearInterval(t);
+  }, []);
 
-    // ExamGuard status (polling true)
-    const examGuardActive = useExamGuard(true);
-    useExamGuardLockdown();
+  const EXAMGUARD_DOWNLOAD_URL = "/ExamGuard.exe";
+  const examGuardActive = useExamGuard(true);
+  useExamGuardLockdown();
 
-    const now = Date.now();
-    const start = new Date(exam.start_time).getTime();
-    const end = new Date(exam.end_time).getTime();
+  const start = new Date(exam.start_time).getTime();
+  const end = new Date(exam.end_time).getTime();
 
-    const isUpcoming = now < start;
-    const isClosed = now > end;
-    const isActive = now >= start && now <= end;
+  const isUpcoming = now < start;
+  const isClosed = now > end;
+  const isActive = now >= start && now <= end;
 
-    // Countdown logic
-    React.useEffect(() => {
-        if (!isUpcoming) return;
+  // Precision Timer
+  React.useEffect(() => {
+    if (!isUpcoming) return;
 
-        const interval = setInterval(() => {
-            const diff = start - Date.now();
+    const interval = setInterval(() => {
+      const diff = start - Date.now();
 
-            if (diff <= 0) {
-                setTimeLeft("Starting now…");
-                clearInterval(interval);
-                return;
-            }
+      if (diff <= 0) {
+        setTimeLeft("00:00:00");
+        clearInterval(interval);
+        return;
+      }
 
-            const h = Math.floor(diff / 3600000);
-            const m = Math.floor((diff % 3600000) / 60000);
-            const s = Math.floor((diff % 60000) / 1000);
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
 
-            setTimeLeft(
-                `${h.toString().padStart(2, "0")}h : ${m
-                    .toString()
-                    .padStart(2, "0")}m : ${s.toString().padStart(2, "0")}s`
-            );
-        }, 1000);
+      setTimeLeft(
+        `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s
+          .toString()
+          .padStart(2, "0")}`
+      );
+    }, 1000);
 
-        return () => clearInterval(interval);
-    }, [exam.start_time, isUpcoming, start]);
+    return () => clearInterval(interval);
+  }, [start, isUpcoming]);
 
-    const fmt = (s?: string) =>
-        s
-            ? new Date(s).toLocaleString("en-US", {
-                month: "short",
-                day: "numeric",
-                hour: "numeric",
-                minute: "2-digit",
-            })
-            : "Not specified";
+  // Function to request Camera/Mic access with better error handling
+  const checkMediaPermissions = async () => {
+    try {
+      setMediaError(null);
 
-    const negativeEnabled = !!exam.enable_negative_marking;
-    const canStart = isActive && hasAcknowledged && examGuardActive;
+      // Check for HTTPS (required for getUserMedia unless on localhost)
+      if (
+        window.location.protocol !== "https:" &&
+        window.location.hostname !== "localhost" &&
+        window.location.hostname !== "127.0.0.1"
+      ) {
+        throw new Error("SECURE_CONNECTION_REQUIRED");
+      }
 
-    // Helper component for Difficulty Card
-    const DifficultyCard = ({
-        label,
-        marks,
-        negative,
-        colorClass,
-        bgClass,
-        borderClass,
-    }: {
-        label: string;
-        marks: number;
-        negative: number;
-        colorClass: string;
-        bgClass: string;
-        borderClass: string;
-    }) => (
-        <div
-            className={`p-2 rounded-lg border ${bgClass} ${borderClass} flex flex-col items-center justify-center text-center`}
-        >
-            <span className={`text-xs font-bold uppercase tracking-wider mb-1 ${colorClass}`}>
-                {label}
-            </span>
-            <div className="w-full grid grid-cols-2 gap-2 mt-1">
-                <div className="flex flex-col">
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase">Correct</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200 text-lg">+{marks}</span>
-                </div>
-                <div className="flex flex-col border-l border-slate-200 dark:border-slate-700/50">
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase">Wrong</span>
-                    <span className={`font-bold text-lg ${negativeEnabled ? "text-rose-500" : "text-slate-400"}`}>
-                        {negativeEnabled ? `-${negative}` : "0"}
-                    </span>
-                </div>
-            </div>
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
+
+      // If successful, set state to true
+      setMediaPermitted(true);
+
+      // Stop tracks immediately to release hardware until actual exam starts
+      stream.getTracks().forEach((track) => track.stop());
+    } catch (err: any) {
+      console.error("Media permission error:", err);
+      setMediaPermitted(false);
+
+      let msg = "An unexpected error occurred accessing media devices.";
+
+      // Handle specific error cases
+      if (err.message === "SECURE_CONNECTION_REQUIRED") {
+        msg = "Camera access requires a secure (HTTPS) connection.";
+      } else if (
+        err.name === "NotAllowedError" ||
+        err.name === "PermissionDeniedError"
+      ) {
+        msg =
+          "Permission blocked. Click the lock icon 🔒 in your URL bar to allow access.";
+      } else if (
+        err.name === "NotFoundError" ||
+        err.name === "DevicesNotFoundError"
+      ) {
+        msg = "No camera or microphone hardware found.";
+      } else if (
+        err.name === "NotReadableError" ||
+        err.name === "TrackStartError"
+      ) {
+        msg = "Hardware is in use by another application (Zoom, Teams, etc.).";
+      }
+
+      setMediaError(msg);
+    }
+  };
+
+  // Updated 'canStart' to include mediaPermitted
+  const canStart =
+    isActive &&
+    hasAcknowledged &&
+    examGuardActive &&
+    mediaPermitted &&
+    !isScreenCaptureActive();
+
+  const negativeEnabled = !!exam.enable_negative_marking;
+
+  const handleStart = () => {
+    if (isScreenCaptureActive()) {
+      alert(
+        "Screen sharing is currently active.\n\nPlease stop screen sharing before starting the exam."
+      );
+      return;
+    }
+
+    onStart();
+  };
+
+  // --- Sub-components for Bento Grid ---
+
+  const InfoCard = ({ icon: Icon, label, value, sub }: any) => (
+    <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 flex flex-col justify-between h-full relative overflow-hidden group hover:border-sky-200 dark:hover:border-sky-800 transition-colors">
+      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+        <Icon className="w-16 h-16" />
+      </div>
+      <div className="flex items-center gap-2 text-slate-400 mb-2">
+        <Icon className="w-4 h-4" />
+        <span className="text-[10px] font-bold uppercase tracking-widest">
+          {label}
+        </span>
+      </div>
+      <div>
+        <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+          {value}
         </div>
-    );
-
-    return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans">
-            <StudentNavbar user={user} onLogout={signOut} onHistory={() => { }} />
-
-            <main className="max-w-4xl mx-auto px-4 py-2">
-                {/* Back Button */}
-                <button
-                    onClick={onBack}
-                    className="
-            mb-2 inline-flex items-center gap-2 text-sm font-medium rounded-lg px-4 py-2 border transition-colors
-            bg-white text-slate-700 border-slate-300 hover:bg-slate-50
-            dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700 dark:hover:bg-slate-800
-          "
-                >
-                    <ArrowLeft className="w-4 h-4" />
-                    Back to Exams
-                </button>
-
-                {/* CLOSED STATE */}
-                {isClosed && (
-                    <div className="flex flex-col items-center justify-center py-2 px-4 rounded-2xl border bg-white dark:bg-slate-900 dark:border-slate-800 text-center shadow-sm">
-                        <div className="bg-red-100 dark:bg-red-900/20 p-4 rounded-full mb-4">
-                            <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
-                        </div>
-                        <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">
-                            Exam Window Closed
-                        </h2>
-                        <p className="text-slate-600 dark:text-slate-400 mb-6 max-w-md">
-                            The scheduled time for this exam has passed. You can no longer attempt it.
-                        </p>
-                        <div className="flex gap-8 text-sm text-slate-500 dark:text-slate-400">
-                            <div>
-                                <span className="block text-xs uppercase tracking-wide opacity-70">Started</span>
-                                <span className="font-medium text-slate-700 dark:text-slate-300">{fmt(exam.start_time)}</span>
-                            </div>
-                            <div>
-                                <span className="block text-xs uppercase tracking-wide opacity-70">Ended</span>
-                                <span className="font-medium text-slate-700 dark:text-slate-300">{fmt(exam.end_time)}</span>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* ACTIVE / UPCOMING PREVIEW */}
-                {!isClosed && (
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-
-                        {/* Header Banner */}
-                        <div className="p-3 md:p-6 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-slate-50 to-white dark:from-slate-900 dark:to-slate-900/50">
-                            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                                <div>
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
-                                            {exam.subject || "General"}
-                                        </span>
-                                        {isActive && (
-                                            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
-                                                <span className="relative flex h-2 w-2">
-                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                                                </span>
-                                                Live Now
-                                            </span>
-                                        )}
-                                    </div>
-                                    <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-50 mb-2">
-                                        {exam.title}
-                                    </h1>
-                                    <p className="text-slate-500 dark:text-slate-400 text-sm flex items-center gap-4">
-                                        <span className="flex items-center gap-1.5">
-                                            <Clock className="w-4 h-4" />
-                                            {exam.duration_minutes} Minutes
-                                        </span>
-                                        <span className="flex items-center gap-1.5">
-                                            <Trophy className="w-4 h-4" />
-                                            Pass: {exam.passing_score}%
-                                        </span>
-                                    </p>
-                                </div>
-
-                                {/* Countdown Box */}
-                                {isUpcoming && (
-                                    <div className="flex flex-col items-center justify-center p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm min-w-[220px]">
-                                        <p className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">
-                                            <Clock className="w-3 h-3" /> Starts In
-                                        </p>
-                                        <div className="font-mono text-2xl font-bold tabular-nums tracking-tight text-sky-600 dark:text-sky-400">
-                                            {timeLeft}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="p-2 md:p-4 space-y-4">
-
-                            {/* ExamGuard Status */}
-                            <div
-                                className={`
-                  p-2 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center gap-4 transition-colors
-                  ${examGuardActive
-                                        ? "bg-emerald-50/50 border-emerald-200 dark:bg-emerald-900/10 dark:border-emerald-800"
-                                        : "bg-rose-50/50 border-rose-200 dark:bg-rose-900/10 dark:border-rose-800"
-                                    }
-                `}
-                            >
-                                <div
-                                    className={`p-2 rounded-lg ${examGuardActive ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600"
-                                        }`}
-                                >
-                                    <ShieldAlert className="w-6 h-6" />
-                                </div>
-                                <div className="flex-1">
-                                    <h3 className={`font-semibold ${examGuardActive ? "text-emerald-900 dark:text-emerald-200" : "text-rose-900 dark:text-rose-200"}`}>
-                                        {examGuardActive ? "Secure Browser Active" : "Security Check Failed"}
-                                    </h3>
-                                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
-                                        {examGuardActive
-                                            ? "ExamGuard is running. Your environment is secure and ready."
-                                            : "ExamGuard is not running. Please launch the application to proceed."}
-                                    </p>
-                                </div>
-                               {!examGuardActive && (
-    <div className="flex flex-col sm:items-end gap-2">
-        <span className="text-xs font-semibold px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-slate-600 dark:text-slate-300 shadow-sm">
-            ExamGuard not detected
-        </span>
-
-        <a
-            href={EXAMGUARD_DOWNLOAD_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="
-              inline-flex items-center gap-2 px-4 py-2 rounded-lg
-              bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold
-              shadow transition
-            "
-        >
-            ⬇ Download ExamGuard
-        </a>
-
-        <span className="text-[11px] text-slate-500 dark:text-slate-400 text-right max-w-[220px]">
-            Download, install, and run ExamGuard.  
-            This page will auto-detect once it is active.
-        </span>
+        {sub && (
+          <div className="text-xs text-slate-500 font-medium mt-1">{sub}</div>
+        )}
+      </div>
     </div>
-)}
+  );
 
-                            </div>
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans selection:bg-sky-500/30 pb-32 relative">
+      {/* Background Pattern */}
+      <div
+        className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05] pointer-events-none"
+        style={{
+          backgroundImage: "radial-gradient(#64748b 1px, transparent 1px)",
+          backgroundSize: "24px 24px",
+        }}
+      ></div>
 
-                            <div className="grid md:grid-cols-2 gap-8">
-                                {/* Left Column: Marking & Stats */}
-                                <div className="space-y-3">
-                                    <div>
-                                        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-2">
-                                            <BookOpen className="w-4 h-4 text-sky-600" />
-                                            Marking Scheme
-                                        </h3>
+      <StudentNavbar user={user} onLogout={signOut} onHistory={() => {}} />
 
-                                        {/* Visual Marking Grid */}
-                                        <div className="grid grid-cols-3 gap-3">
-                                            <DifficultyCard
-                                                label="Easy"
-                                                marks={exam.marks_easy}
-                                                negative={exam.negative_mark_easy}
-                                                colorClass="text-emerald-600 dark:text-emerald-400"
-                                                bgClass="bg-emerald-50/50 dark:bg-emerald-950/20"
-                                                borderClass="border-emerald-100 dark:border-emerald-900/50"
-                                            />
-                                            <DifficultyCard
-                                                label="Medium"
-                                                marks={exam.marks_medium}
-                                                negative={exam.negative_mark_medium}
-                                                colorClass="text-amber-600 dark:text-amber-400"
-                                                bgClass="bg-amber-50/50 dark:bg-amber-950/20"
-                                                borderClass="border-amber-100 dark:border-amber-900/50"
-                                            />
-                                            <DifficultyCard
-                                                label="Hard"
-                                                marks={exam.marks_hard}
-                                                negative={exam.negative_mark_hard}
-                                                colorClass="text-rose-600 dark:text-rose-400"
-                                                bgClass="bg-rose-50/50 dark:bg-rose-950/20"
-                                                borderClass="border-rose-100 dark:border-rose-900/50"
-                                            />
-                                        </div>
+      <main className="max-w-7xl mx-auto px-4 py-2 relative z-10">
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-2">
+          <button
+            onClick={onBack}
+            className="group flex items-center gap-3 text-sm font-semibold text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+              <ArrowLeft className="w-5 h-5" />
+            </div>
+            Back to Dashboard
+          </button>
 
-                                        <div className="mt-3 flex items-start gap-2 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg">
-                                            <Info className="w-4 h-4 shrink-0 text-slate-400" />
-                                            <p>
-                                                {negativeEnabled
-                                                    ? "Negative marking is active. Marks will be deducted for incorrect answers based on difficulty."
-                                                    : "Negative marking is disabled for this exam. No marks are deducted for wrong answers."}
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-2">
-                                            <CheckCircle2 className="w-4 h-4 text-sky-600" />
-                                            Candidate Details
-                                        </h3>
-                                        <div className="bg-slate-50 dark:bg-slate-950/50 rounded-xl border border-slate-100 dark:border-slate-800 p-4">
-                                            <div className="grid grid-cols-2 gap-y-2">
-                                                <div>
-                                                    <span className="block text-xs text-slate-500 mb-0.5">Name</span>
-                                                    <span className="font-medium text-slate-900 dark:text-slate-200">{user?.full_name}</span>
-                                                </div>
-                                                <div>
-                                                    <span className="block text-xs text-slate-500 mb-0.5">Candidate ID</span>
-                                                    <span className="font-mono text-sm font-medium text-slate-900 dark:text-slate-200">{user?.id}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Right Column: Instructions */}
-                                <div>
-                                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-2">
-                                        <HelpCircle className="w-4 h-4 text-sky-600" />
-                                        Instructions
-                                    </h3>
-                                    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                                        <ul className="divide-y divide-slate-100 dark:divide-slate-800 text-sm text-slate-600 dark:text-slate-300">
-                                            {[
-                                                "Ensure you have a stable internet connection.",
-                                                "Do not switch tabs or windows; this will be recorded.",
-                                                "The timer starts immediately after clicking 'Start Test'.",
-                                                "Questions can be marked for review.",
-                                                "Click 'Submit' only when you have completed the test.",
-                                                "In case of system failure, login again immediately."
-                                            ].map((inst, i) => (
-                                                <li key={i} className="px-4 py-3 flex gap-3">
-                                                    <span className="text-sky-600 font-bold text-xs mt-0.5">{i + 1}.</span>
-                                                    <span>{inst}</span>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Footer Actions */}
-                            <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                                <label className="flex items-start gap-3 cursor-pointer group">
-                                    <div className="relative flex items-center">
-                                        <input
-                                            type="checkbox"
-                                            className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-slate-300 dark:border-slate-600 checked:bg-sky-600 checked:border-sky-600 transition-all"
-                                            checked={hasAcknowledged}
-                                            onChange={(e) => setHasAcknowledged(e.target.checked)}
-                                        />
-                                        <CheckCircle2 className="pointer-events-none absolute h-3.5 w-3.5 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
-                                    </div>
-                                    <span className="text-sm text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">
-                                        I have read the instructions and agree to the terms.
-                                    </span>
-                                </label>
-
-                                <button
-                                    disabled={!canStart}
-                                    onClick={onStart}
-                                    className={`
-                    relative overflow-hidden inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl text-sm font-bold tracking-wide transition-all duration-200 shadow-md
-                    ${canStart
-                                            ? "bg-sky-600 hover:bg-sky-500 text-white shadow-sky-200 dark:shadow-sky-900/20 translate-y-0 cursor-pointer"
-                                            : "bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed"
-                                        }
-                  `}
-                                >
-                                    <PlayCircle className={`w-5 h-5 ${canStart ? "animate-pulse" : ""}`} />
-                                    {isActive ? (
-                                        examGuardActive ? "START TEST" : "ExamGuard Required"
-                                    ) : (
-                                        `Opens at ${new Date(exam.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                                    )}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </main>
+          <div className="flex items-center gap-3 bg-white dark:bg-slate-900 py-2 px-4 rounded-full border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-xs font-mono font-medium text-slate-600 dark:text-slate-300">
+              Connection Stable
+            </span>
+          </div>
         </div>
-    );
+
+        {isClosed ? (
+          // CLOSED STATE
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="w-24 h-24 bg-slate-200 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6">
+              <AlertOctagon className="w-10 h-10 text-slate-500" />
+            </div>
+            <h1 className="text-4xl font-bold text-slate-900 dark:text-white mb-2">
+              Exam Ended
+            </h1>
+            <p className="text-slate-500">
+              This assessment is no longer accepting submissions.
+            </p>
+          </div>
+        ) : (
+          // BENTO GRID LAYOUT
+          <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-4 gap-4">
+            {/* 1. Main Title Card (Span 2) */}
+            <div className="md:col-span-2 bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[200px]">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-sky-50 dark:bg-sky-900/10 rounded-bl-full -mr-10 -mt-10 pointer-events-none" />
+
+              <div className="relative">
+                <div className="flex flex-wrap items-center gap-2 mb-4">
+                  <span className="px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold uppercase tracking-wider">
+                    {exam.subject}
+                  </span>
+                  {isActive && (
+                    <span className="px-3 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />{" "}
+                      Live
+                    </span>
+                  )}
+                </div>
+                <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 dark:text-white leading-tight tracking-tight">
+                  {exam.title}
+                </h1>
+              </div>
+
+              <div className="flex items-center gap-4 mt-6 text-sm text-slate-500 font-medium">
+                <span className="flex items-center gap-1.5">
+                  <Clock className="w-4 h-4" /> {exam.duration_minutes}m
+                  Duration
+                </span>
+                <span className="w-1 h-1 bg-slate-300 rounded-full" />
+                <span className="flex items-center gap-1.5">
+                  <Trophy className="w-4 h-4" /> {exam.passing_score}% Passing
+                </span>
+              </div>
+            </div>
+
+            {/* 2. Timer / Countdown Card (Span 1) */}
+            <div className="md:col-span-1 bg-slate-900 dark:bg-black p-6 rounded-[2rem] border border-slate-800 shadow-xl flex flex-col items-center justify-center text-center relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-slate-800 to-slate-900 opacity-50" />
+              <div className="relative z-10">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">
+                  {isActive ? "TIME REMAINING" : "STARTS IN"}
+                </p>
+                <div className="font-mono text-5xl md:text-5xl lg:text-5xl font-bold text-sky-400 tracking-tight tabular-nums">
+                  {isActive ? "Running..." : timeLeft}
+                </div>
+                <p className="text-xs text-slate-400 mt-2">
+                  {new Date(exam.start_time).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
+              </div>
+            </div>
+
+            {/* 3. Candidate ID Card (Span 1) */}
+            <div className="md:col-span-1 bg-sky-50 dark:bg-sky-900/10 p-6 rounded-[2rem] border border-sky-100 dark:border-sky-800/50 flex flex-col justify-center">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-full bg-white dark:bg-sky-900 flex items-center justify-center text-sky-600 shadow-sm">
+                  <Hash className="w-5 h-5" />
+                </div>
+                <div className="text-xs font-bold uppercase text-sky-800 dark:text-sky-300 tracking-wider">
+                  Candidate
+                </div>
+              </div>
+              <div className="font-bold text-slate-900 dark:text-white truncate">
+                {user?.full_name}
+              </div>
+              <div className="font-mono text-xs text-slate-500 truncate mt-1">
+                ID: {user?.id}
+              </div>
+            </div>
+
+            {/* 4. Stats Row (Span 4) */}
+            <div className="md:col-span-1">
+              <InfoCard
+                icon={HelpCircle}
+                label="Questions"
+                value="MCQ"
+                sub="Single Correct"
+              />
+            </div>
+            <div className="md:col-span-1">
+              <InfoCard
+                icon={AlertCircle}
+                label="Negative Marking"
+                value={negativeEnabled ? "Active" : "Disabled"}
+                sub={negativeEnabled ? "Read scheme carefully" : "No deduction"}
+              />
+            </div>
+
+            {/* 5. ExamGuard Status (Span 2) */}
+            <div
+              className={`md:col-span-2 p-6 rounded-[2rem] border relative overflow-hidden transition-all
+                ${
+                  examGuardActive
+                    ? "bg-emerald-50/50 border-emerald-100 dark:bg-emerald-900/10 dark:border-emerald-900"
+                    : "bg-rose-50/50 border-rose-100 dark:bg-rose-900/10 dark:border-rose-900"
+                }
+            `}
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 h-full">
+                <div className="flex items-start gap-4">
+                  <div
+                    className={`p-3 rounded-2xl shrink-0 ${
+                      examGuardActive
+                        ? "bg-emerald-100 text-emerald-600"
+                        : "bg-rose-100 text-rose-600"
+                    }`}
+                  >
+                    {examGuardActive ? (
+                      <ShieldCheck className="w-6 h-6" />
+                    ) : (
+                      <ShieldAlert className="w-6 h-6" />
+                    )}
+                  </div>
+                  <div>
+                    <h3
+                      className={`font-bold text-base ${
+                        examGuardActive
+                          ? "text-emerald-900 dark:text-emerald-200"
+                          : "text-rose-900 dark:text-rose-200"
+                      }`}
+                    >
+                      {examGuardActive
+                        ? "Secure Browser Active"
+                        : "Security Check Required"}
+                    </h3>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-sm leading-relaxed">
+                      {examGuardActive
+                        ? "System is locked and ready for examination."
+                        : "ExamGuard must be running to start the test."}
+                    </p>
+                  </div>
+                </div>
+                {!examGuardActive && (
+                  <a
+                    href={EXAMGUARD_DOWNLOAD_URL}
+                    className="shrink-0 inline-flex items-center gap-2 px-5 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 transition shadow-sm"
+                  >
+                    <Download className="w-4 h-4" /> Download
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* 6. Media Permissions Check (NEW - Span 2) */}
+            {/* <div
+              className={`md:col-span-2 p-6 rounded-[2rem] border relative overflow-hidden transition-all
+                ${
+                  mediaPermitted
+                    ? "bg-emerald-50/50 border-emerald-100 dark:bg-emerald-900/10 dark:border-emerald-900"
+                    : "bg-amber-50/50 border-amber-100 dark:bg-amber-900/10 dark:border-amber-900"
+                }
+            `}
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 h-full">
+                <div className="flex items-start gap-4">
+                  <div
+                    className={`p-3 rounded-2xl shrink-0 ${
+                      mediaPermitted
+                        ? "bg-emerald-100 text-emerald-600"
+                        : "bg-amber-100 text-amber-600"
+                    }`}
+                  >
+                    {mediaPermitted ? (
+                      <Camera className="w-6 h-6" />
+                    ) : (
+                      <Mic className="w-6 h-6" />
+                    )}
+                  </div>
+                  <div>
+                    <h3
+                      className={`font-bold text-base ${
+                        mediaPermitted
+                          ? "text-emerald-900 dark:text-emerald-200"
+                          : "text-amber-900 dark:text-amber-200"
+                      }`}
+                    >
+                      {mediaPermitted
+                        ? "Hardware Ready"
+                        : "Hardware Access Required"}
+                    </h3>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-sm leading-relaxed">
+                      {mediaError ? (
+                        <span className="text-rose-600 font-medium">
+                          {mediaError}
+                        </span>
+                      ) : mediaPermitted ? (
+                        "Camera and Microphone permissions granted."
+                      ) : (
+                        "You must enable Camera & Mic to proceed."
+                      )}
+                    </p>
+                  </div>
+                </div>
+                {!mediaPermitted && (
+                  <button
+                    onClick={checkMediaPermissions}
+                    className="shrink-0 inline-flex items-center gap-2 px-5 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 transition shadow-sm cursor-pointer"
+                  >
+                    <Camera className="w-4 h-4" /> Enable Devices
+                  </button>
+                )}
+              </div>
+            </div> */}
+
+            {/* 7. Marking Scheme (Span 2) */}
+            <div className="md:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
+                <BookOpen className="w-4 h-4" /> Grading Logic
+              </h3>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  {
+                    l: "Easy",
+                    m: exam.marks_easy,
+                    n: exam.negative_mark_easy,
+                    color: "bg-emerald-50 text-emerald-700 border-emerald-100",
+                  },
+                  {
+                    l: "Medium",
+                    m: exam.marks_medium,
+                    n: exam.negative_mark_medium,
+                    color: "bg-amber-50 text-amber-700 border-amber-100",
+                  },
+                  {
+                    l: "Hard",
+                    m: exam.marks_hard,
+                    n: exam.negative_mark_hard,
+                    color: "bg-rose-50 text-rose-700 border-rose-100",
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.l}
+                    className={`p-4 rounded-2xl border ${item.color} dark:bg-opacity-10 dark:border-opacity-20`}
+                  >
+                    <div className="text-[10px] font-black uppercase opacity-70 mb-1">
+                      {item.l}
+                    </div>
+                    <div className="text-lg font-bold">+{item.m}</div>
+                    <div className="text-[10px] font-medium opacity-80">
+                      {negativeEnabled ? `-${item.n} wrong` : "0 deduction"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 8. Instructions (Span 2) */}
+            <div className="md:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
+                <Wifi className="w-4 h-4" /> Protocols
+              </h3>
+              <ul className="space-y-3">
+                {[
+                  "Do not switch tabs or minimize the window.",
+                  "Webcam and microphone must remain enabled.",
+                  "Timer continues even if you disconnect.",
+                  "Submit only when you have answered all questions.",
+                ].map((rule, i) => (
+                  <li
+                    key={i}
+                    className="flex items-start gap-3 text-sm text-slate-600 dark:text-slate-300"
+                  >
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-500 mt-0.5">
+                      {i + 1}
+                    </span>
+                    <span className="leading-relaxed">{rule}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* --- FLOATING ACTION DOCK --- */}
+      {!isClosed && (
+        <div className="fixed bottom-6 left-0 right-0 z-50 flex justify-center px-4">
+          <div className="w-full max-w-3xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-2 pl-6 rounded-2xl shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-4 ring-1 ring-slate-900/5">
+            <label className="flex items-center gap-3 cursor-pointer group py-2">
+              <div className="relative flex items-center">
+                <input
+                  type="checkbox"
+                  className="peer h-5 w-5 cursor-pointer appearance-none rounded-lg border-2 border-slate-300 dark:border-slate-600 checked:bg-sky-600 checked:border-sky-600 transition-all"
+                  checked={hasAcknowledged}
+                  onChange={(e) => setHasAcknowledged(e.target.checked)}
+                />
+                <CheckCircle2 className="pointer-events-none absolute h-3.5 w-3.5 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
+              </div>
+              <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 group-hover:text-slate-900 transition-colors">
+                I agree to the terms
+              </span>
+            </label>
+
+            <button
+              disabled={!canStart}
+              onClick={handleStart}
+              className={`
+                relative overflow-hidden flex items-center gap-3 px-8 py-3 rounded-xl font-bold text-sm tracking-wide transition-all duration-300
+                ${
+                  canStart
+                    ? "bg-slate-900 dark:bg-sky-600 text-white shadow-lg shadow-slate-900/20 dark:shadow-sky-900/30 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                    : "bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed"
+                }
+              `}
+            >
+              <div className="relative z-10 flex items-center gap-2">
+                {isActive ? (
+                  <>
+                    <Play
+                      className={`w-4 h-4 ${canStart ? "fill-current" : ""}`}
+                    />
+                    <span>START EXAM</span>
+                  </>
+                ) : (
+                  <>
+                    <Clock className="w-4 h-4" />
+                    <span>NOT STARTED</span>
+                  </>
+                )}
+              </div>
+              {canStart && (
+                <div className="absolute inset-0 bg-white/10 animate-pulse" />
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
