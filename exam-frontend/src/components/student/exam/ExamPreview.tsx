@@ -23,6 +23,7 @@ import { useAuth } from "../../../contexts/AuthContext";
 import { Exam } from "../../../types/models";
 import { useExamGuard } from "../../../hooks/useExamGuard";
 import { useExamGuardLockdown } from "../../../hooks/useExamGuardLockdown";
+import { isScreenCaptureActive } from "../../../utils/screenCaptureState";
 
 interface Props {
   exam: Exam;
@@ -36,7 +37,7 @@ export function ExamPreview({ exam, onBack, onStart }: Props) {
   const [hasAcknowledged, setHasAcknowledged] = React.useState(false);
 
   // New state for media permissions
-  const [mediaPermitted, setMediaPermitted] = React.useState(false);
+  const [mediaPermitted, setMediaPermitted] = React.useState(true);
   const [mediaError, setMediaError] = React.useState<string | null>(null);
   const [now, setNow] = React.useState(Date.now());
 
@@ -143,8 +144,24 @@ export function ExamPreview({ exam, onBack, onStart }: Props) {
 
   // Updated 'canStart' to include mediaPermitted
   const canStart =
-    isActive && hasAcknowledged && examGuardActive && mediaPermitted;
+    isActive &&
+    hasAcknowledged &&
+    examGuardActive &&
+    mediaPermitted &&
+    !isScreenCaptureActive();
+
   const negativeEnabled = !!exam.enable_negative_marking;
+
+  const handleStart = () => {
+    if (isScreenCaptureActive()) {
+      alert(
+        "Screen sharing is currently active.\n\nPlease stop screen sharing before starting the exam."
+      );
+      return;
+    }
+
+    onStart();
+  };
 
   // --- Sub-components for Bento Grid ---
 
@@ -364,7 +381,7 @@ export function ExamPreview({ exam, onBack, onStart }: Props) {
             </div>
 
             {/* 6. Media Permissions Check (NEW - Span 2) */}
-            <div
+            {/* <div
               className={`md:col-span-2 p-6 rounded-[2rem] border relative overflow-hidden transition-all
                 ${
                   mediaPermitted
@@ -422,7 +439,7 @@ export function ExamPreview({ exam, onBack, onStart }: Props) {
                   </button>
                 )}
               </div>
-            </div>
+            </div> */}
 
             {/* 7. Marking Scheme (Span 2) */}
             <div className="md:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm">
@@ -515,7 +532,7 @@ export function ExamPreview({ exam, onBack, onStart }: Props) {
 
             <button
               disabled={!canStart}
-              onClick={onStart}
+              onClick={handleStart}
               className={`
                 relative overflow-hidden flex items-center gap-3 px-8 py-3 rounded-xl font-bold text-sm tracking-wide transition-all duration-300
                 ${

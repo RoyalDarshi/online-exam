@@ -132,28 +132,28 @@ export function ExamTaking({ exam, onComplete, onCancel, candidate }: Props) {
   };
 
   // Monitor mic and face
-  useMicMonitor({
-    onSilence: () => {
-      addUIWarning(
-        "Microphone is silent for an extended period",
-        "medium",
-        8000
-      );
-    },
-    onNoise: () => {
-      addUIWarning("Excessive background noise detected", "low", 5000);
-    },
-  });
+  // useMicMonitor({
+  //   onSilence: () => {
+  //     addUIWarning(
+  //       "Microphone is silent for an extended period",
+  //       "medium",
+  //       8000
+  //     );
+  //   },
+  //   onNoise: () => {
+  //     addUIWarning("Excessive background noise detected", "low", 5000);
+  //   },
+  // });
 
-  useFacePresence({
-    onFaceMissing: () => {
-      addUIWarning(
-        "Face not detected in camera. Please stay visible.",
-        "high",
-        10000
-      );
-    },
-  });
+  // useFacePresence({
+  //   onFaceMissing: () => {
+  //     addUIWarning(
+  //       "Face not detected in camera. Please stay visible.",
+  //       "high",
+  //       10000
+  //     );
+  //   },
+  // });
 
   React.useEffect(() => {
     if (window.innerWidth < 1024) setShowSidebar(false);
