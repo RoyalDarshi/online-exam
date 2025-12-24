@@ -108,8 +108,10 @@ func ExamWebSocket(c *gin.Context) {
 	// enforce single active websocket session
 	wsKey := "ws_active:" + attemptID
 
+	ttl := time.Duration(attempt.Exam.DurationMinutes+10) * time.Minute
+
 	// Set the key to mark user as ONLINE
-	_ = redisSet(wsKey, token, 2*time.Hour)
+	_ = redisSet(wsKey, token, ttl)
 
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {

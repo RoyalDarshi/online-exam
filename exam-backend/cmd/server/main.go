@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"exam-backend/controllers"
 	"exam-backend/database"
 	"exam-backend/middleware"
 	"exam-backend/models"
 	"log"
 	"os"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -46,8 +48,13 @@ func main() {
 		redisAddr = "localhost:6379" // fallback for dev
 	}
 	if err := database.InitializeRedis(redisAddr); err != nil {
-		log.Println("Redis init failed:", err)
-		// continue in degraded mode (Redis optional)
+		log.Fatalf("❌ Redis is REQUIRED. Startup failed: %v", err)
+	}
+	log.Println("✅ Redis connected")
+
+	err := database.RedisHealthCheck(context.Background())
+	if err != nil {
+		log.Fatal("Redis unhealthy:", err)
 	}
 
 	// Start the background worker to clean up old exams
@@ -63,7 +70,7 @@ func main() {
 
 	// Auth
 	r.POST("/api/auth/register", controllers.Register)
-	r.POST("/api/auth/login", controllers.Login)
+	r.POST("/api/auth/login",middleware.RateLimit("login", 5, time.Minute), controllers.Login)
 	r.GET("/ws/exam", controllers.ExamWebSocket)
 
 	// Protected API
@@ -73,9 +80,9 @@ func main() {
 		// exams (shared)
 		api.GET("/exams", controllers.GetExams)
 		api.GET("/exams/:id", controllers.GetExamDetails)
-		api.POST("/attempts/start", controllers.StartAttempt)
-		api.POST("/progress", controllers.UpdateProgress)
-		api.POST("/attempts/submit", controllers.SubmitAttempt)
+		api.POST("/attempts/start",middleware.RateLimit("start_exam", 2, time.Minute), controllers.StartAttempt)
+		api.POST("/progress",middleware.RateLimit("progress", 6, time.Second), controllers.UpdateProgress)
+		api.POST("/attempts/submit",middleware.RateLimit("submit_attempt", 2, time.Minute), controllers.SubmitAttempt)
 		api.GET("/attempts/:id", controllers.GetAttemptDetails)
 		api.GET("/student/attempts", controllers.GetStudentAttempts)
 

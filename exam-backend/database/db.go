@@ -33,8 +33,8 @@ func Connect() {
 	}
 
 	// Optional pooling tweaks
-	sqlDB.SetMaxOpenConns(50)
-	sqlDB.SetMaxIdleConns(25)
+	sqlDB.SetMaxOpenConns(100)   // VERY IMPORTANT
+	sqlDB.SetMaxIdleConns(50)
 	sqlDB.SetConnMaxLifetime(30 * time.Minute)
 
 	DB = db
