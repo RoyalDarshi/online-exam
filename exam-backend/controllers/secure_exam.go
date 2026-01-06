@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -256,64 +257,35 @@ func UpdateProgress(c *gin.Context) {
 		Snapshot    string            `json:"snapshot"`
 		TabSwitches int               `json:"tab_switches"`
 	}
+
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(400, gin.H{"error": "invalid_payload"})
 		return
 	}
 
-	attemptUUID, err := uuid.Parse(input.AttemptID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid attempt_id"})
-		return
-	}
+	ctx := c.Request.Context()
+	attemptID := input.AttemptID
 
-	var attempt models.ExamAttempt
-	if err := database.DB.First(&attempt, "id = ?", attemptUUID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "attempt not found"})
-		return
-	}
+	answersKey := "attempt:answers:" + attemptID
+	tabsKey := "attempt:tabs:" + attemptID
+	dirtyKey := "attempt:dirty:" + attemptID
 
-	// if already submitted or terminated -> reject updates
-	if attempt.SubmittedAt != nil || attempt.IsTerminated {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "attempt_locked"})
-		return
-	}
-
-	// ---------------------------------------------------------
-	// FIX: Replace answers instead of merging
-	// Since frontend sends the full state, we overwrite the DB state.
-	// If a key is missing in input.Answers (because it was cleared),
-	// it will effectively be removed from attempt.Answers.
-	// ---------------------------------------------------------
+	// 1️⃣ Save answers to Redis
 	if input.Answers != nil {
-		attempt.Answers = input.Answers
+		_ = database.RedisSetJSON(ctx, answersKey, input.Answers, 3*time.Hour)
 	}
 
-	// Append snapshot if provided
-	if input.Snapshot != "" {
-		attempt.Snapshots = append(attempt.Snapshots, input.Snapshot)
-		if len(attempt.Snapshots) > 50 {
-			attempt.Snapshots = attempt.Snapshots[len(attempt.Snapshots)-50:]
-		}
+	// 2️⃣ Save tab switches
+	if input.TabSwitches > 0 {
+		_ = database.RedisSet(ctx, tabsKey, strconv.Itoa(input.TabSwitches), 3*time.Hour)
 	}
 
-	// Tab-switch enforcement
-	const MAX_TAB_SWITCHES = 5
-	if input.TabSwitches > attempt.TabSwitches {
-		attempt.TabSwitches = input.TabSwitches
-	}
-	if attempt.TabSwitches > MAX_TAB_SWITCHES {
-		attempt.IsTerminated = true
-		attempt.TerminationReason = "too_many_tab_switches"
-	}
+	// 3️⃣ Mark attempt as dirty (needs DB flush)
+	_ = database.RedisSet(ctx, dirtyKey, "1", 3*time.Hour)
 
-	if err := database.DB.Save(&attempt).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save progress"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	c.JSON(200, gin.H{"status": "ok"})
 }
+
 
 // ------------------------- SUBMIT ATTEMPT (student) -------------------------
 func SubmitAttempt(c *gin.Context) {
@@ -340,6 +312,24 @@ func SubmitAttempt(c *gin.Context) {
 	if attempt.SubmittedAt != nil || attempt.IsTerminated {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "attempt_already_finalized"})
 		return
+	}
+
+	ctx := c.Request.Context()
+	attemptID := attempt.ID.String()
+
+	answersKey := "attempt:answers:" + attemptID
+	tabsKey := "attempt:tabs:" + attemptID
+
+	// 🔥 FORCE LOAD LATEST ANSWERS FROM REDIS
+	var redisAnswers map[string]string
+	if err := database.RedisGetJSON(ctx, answersKey, &redisAnswers); err == nil && redisAnswers != nil {
+		attempt.Answers = redisAnswers
+	}
+
+	// 🔥 FORCE LOAD TAB SWITCHES
+	tabsStr, _ := database.RedisGet(ctx, tabsKey)
+	if tabs, err := strconv.Atoi(tabsStr); err == nil {
+		attempt.TabSwitches = tabs
 	}
 
 	// Evaluate score using robust logic

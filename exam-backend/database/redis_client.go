@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -79,3 +80,25 @@ func ensureRedis() {
 		panic(errors.New("redis client is NOT initialized (this is fatal in production)"))
 	}
 }
+
+func RedisSetJSON(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	return RedisSet(ctx, key, string(data), ttl)
+}
+
+func RedisGetJSON(ctx context.Context, key string, dest interface{}) error {
+	val, err := RedisGet(ctx, key)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal([]byte(val), dest)
+}
+
+func RedisKeys(ctx context.Context, pattern string) ([]string, error) {
+	ensureRedis()
+	return redisClient.Keys(ctx, pattern).Result()
+}
+

@@ -6,6 +6,7 @@ import (
 	"exam-backend/database"
 	"exam-backend/middleware"
 	"exam-backend/models"
+	"exam-backend/workers"
 	"log"
 	"os"
 	"time"
@@ -56,6 +57,8 @@ func main() {
 	if err != nil {
 		log.Fatal("Redis unhealthy:", err)
 	}
+	workers.StartAutosaveFlusher()
+
 
 	// Start the background worker to clean up old exams
 	controllers.StartExamCleanupTask()
